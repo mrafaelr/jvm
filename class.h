@@ -13,6 +13,7 @@ typedef enum ErrorTag {
 	ERR_CONSTANT,
 	ERR_INDEX,
 	ERR_MAGIC,
+	ERR_ALLOC,
 } ErrorTag;
 
 typedef enum ConstantTag {

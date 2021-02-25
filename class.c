@@ -9,13 +9,86 @@
 
 #define MAGIC           0xCAFEBABE
 
+struct FreeStack {
+	struct FreeStack *next;
+	void *p;
+};
+
 static jmp_buf jmpenv;
 static FILE *filep;
 static char *filename;
+static struct FreeStack *freep = NULL;
 
 /* error variables */
 static int saverrno;
 static ErrorTag errtag = ERR_NONE;
+
+/* add pointer to stack of pointers to be freed when an error occurs */
+static void
+addfree(void *p)
+{
+	struct FreeStack *f;
+
+	if ((f = malloc(sizeof *f)) == NULL)
+		err(1, "malloc");
+	f->p = p;
+	f->next = freep;
+	freep = f;
+}
+
+/* free stack of pointers to be freed when an error occurs */
+static void
+delfree(void)
+{
+	struct FreeStack *f;
+
+	f = freep;
+	freep = f->next;
+	free(f);
+}
+
+/* free stack of pointers to be freed when an error occurs */
+static void
+freestack(void *classp)
+{
+	struct FreeStack *f;
+
+	while (freep) {
+		f = freep;
+		freep = f->next;
+		if (f->p != classp)
+			free(f->p);
+		free(f);
+	}
+}
+
+/* call malloc; add returned pointer to stack of pointers to be freed */
+static void *
+fmalloc(size_t size)
+{
+	void *p;
+
+	if ((p = malloc(size)) == NULL) {
+		errtag = ERR_ALLOC;
+		longjmp(jmpenv, 1);
+	}
+	addfree(p);
+	return p;
+}
+
+/* call calloc; add returned pointer to stack of pointers to be freed */
+static void *
+fcalloc(size_t nmemb, size_t size)
+{
+	void *p;
+
+	if ((p = calloc(nmemb, size)) == NULL) {
+		errtag = ERR_ALLOC;
+		longjmp(jmpenv, 1);
+	}
+	addfree(p);
+	return p;
+}
 
 /* get attribute tag from string */
 static AttributeTag
@@ -46,7 +119,7 @@ getattributetag(char *tagstr)
 
 /* read count bytes into buf; longjmp to class_read on error */
 static void
-read(void *buf, U2 count)
+read(void *buf, U4 count)
 {
 	if (fread(buf, 1, count, filep) != count) {
 		if (feof(filep)) {
@@ -60,11 +133,16 @@ read(void *buf, U2 count)
 }
 
 /* read string of length count into buf; insert a nul at the end of it */
-static void
-reads(char *buf, U2 count)
+static char *
+reads(U2 count)
 {
-	read(buf, count);
-	buf[count] = '\0';
+	char *s;
+
+	s = fmalloc(count + 1);
+	read(s, count);
+	s[count] = '\0';
+	delfree();
+	return s;
 }
 
 /* read unsigned integer U4 and return it */
@@ -99,14 +177,13 @@ readcp(U2 count)
 
 	if (count == 0)
 		return NULL;
-	cp = ecalloc(count, sizeof *cp);
+	cp = fcalloc(count, sizeof *cp);
 	for (i = 1; i < count; i++) {
 		cp[i].tag = readu(1);
 		switch (cp[i].tag) {
 		case CONSTANT_Utf8:
 			cp[i].info.utf8_info.length = readu(2);
-			cp[i].info.utf8_info.bytes = emalloc(cp[i].info.utf8_info.length + 1);
-			reads(cp[i].info.utf8_info.bytes, cp[i].info.utf8_info.length);
+			cp[i].info.utf8_info.bytes = reads(cp[i].info.utf8_info.length);
 			break;
 		case CONSTANT_Integer:
 			cp[i].info.integer_info.bytes = readu(4);
@@ -160,6 +237,7 @@ readcp(U2 count)
 			break;
 		}
 	}
+	delfree();
 	return cp;
 }
 
@@ -172,9 +250,46 @@ readinterfaces(U2 count)
 
 	if (count == 0)
 		return NULL;
-	p = ecalloc(count, sizeof *p);
+	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++)
 		p[i] = readu(2);
+	delfree();
+	return p;
+}
+
+/* read code instructions, return point to instruction array */
+static U1 *
+readcode(U4 count)
+{
+	U1 *code;
+	U4 i;
+
+	if (count == 0)
+		return NULL;
+	code = fmalloc(count);
+	for (i = 0; i < count; i++)
+		code[i] = readu(1);
+	delfree();
+	return code;
+}
+
+/* reaed exception table, return point to exception array */
+static Exception *
+readexceptions(U2 count)
+{
+	Exception *p;
+	U2 i;
+
+	if (count == 0)
+		return NULL;
+	p = fcalloc(count, sizeof *p);
+	for (i = 0; i < count; i++) {
+		p[i].start_pc = readu(2);
+		p[i].end_pc = readu(2);
+		p[i].handler_pc = readu(2);
+		p[i].catch_type = readu(2);
+	}
+	delfree();
 	return p;
 }
 
@@ -190,7 +305,7 @@ readattributes(ClassFile *class, U2 count)
 
 	if (count == 0)
 		return NULL;
-	p = ecalloc(count, sizeof *p);
+	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++) {
 		index = readu(2);
 		length = readu(4);
@@ -203,10 +318,20 @@ readattributes(ClassFile *class, U2 count)
 			longjmp(jmpenv, 1);
 		}
 		p[i].tag = getattributetag(class->constant_pool[index].info.utf8_info.bytes);
-		printf("%s\n", class->constant_pool[index].info.utf8_info.bytes);
 		switch (p[i].tag) {
 		case ConstantValue:
+			p[i].info.constantvalue.constantvalue_index = readu(2);
+			break;
 		case Code:
+			p[i].info.code.max_stack = readu(2);
+			p[i].info.code.max_locals = readu(2);
+			p[i].info.code.code_length = readu(4);
+			p[i].info.code.code = readcode(p[i].info.code.code_length);
+			p[i].info.code.exception_table_length = readu(2);
+			p[i].info.code.exception_table = readexceptions(p[i].info.code.exception_table_length);
+			p[i].info.code.attributes_count = readu(2);
+			p[i].info.code.attributes = readattributes(class, p[i].info.code.attributes_count);
+			break;
 		case Depcreated:
 		case Exceptions:
 		case InnerClasses:
@@ -220,6 +345,7 @@ readattributes(ClassFile *class, U2 count)
 			break;
 		}
 	}
+	delfree();
 	return NULL;
 }
 
@@ -232,7 +358,7 @@ readfields(ClassFile *class, U2 count)
 
 	if (count == 0)
 		return NULL;
-	p = ecalloc(count, sizeof *p);
+	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++) {
 		p[i].access_flags = readu(2);
 		p[i].name_index = readu(2);
@@ -240,6 +366,7 @@ readfields(ClassFile *class, U2 count)
 		p[i].attributes_count = readu(2);
 		p[i].attributes = readattributes(class, p[i].attributes_count);
 	}
+	delfree();
 	return p;
 }
 
@@ -252,7 +379,7 @@ readmethods(ClassFile *class, U2 count)
 
 	if (count == 0)
 		return NULL;
-	p = ecalloc(count, sizeof *p);
+	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++) {
 		p[i].access_flags = readu(2);
 		p[i].name_index = readu(2);
@@ -260,6 +387,7 @@ readmethods(ClassFile *class, U2 count)
 		p[i].attributes_count = readu(2);
 		p[i].attributes = readattributes(class, p[i].attributes_count);
 	}
+	delfree();
 	return p;
 }
 
@@ -267,7 +395,26 @@ readmethods(ClassFile *class, U2 count)
 static void
 attributefree(Attribute *attr, U2 count)
 {
-	(void)count;
+	U2 i;
+
+	if (attr == NULL)
+		return;
+	for (i = 0; i < count; i++) {
+		switch (attr[i].tag) {
+		case ConstantValue:
+			break;
+		case Code:
+		case Depcreated:
+		case Exceptions:
+		case InnerClasses:
+		case SourceFile:
+		case Synthetic:
+		case LineNumberTable:
+		case LocalVariableTable:
+		case UnknownAttribute:
+			break;
+		}
+	}
 	free(attr);
 }
 
@@ -285,10 +432,12 @@ class_free(ClassFile *class)
 	free(class->constant_pool);
 	free(class->interfaces);
 	for (i = 0; i < class->fields_count; i++)
-		attributefree(class->fields[i].attributes, class->fields[i].attributes_count);
+		if (class->fields)
+			attributefree(class->fields[i].attributes, class->fields[i].attributes_count);
 	free(class->fields);
 	for (i = 0; i < class->methods_count; i++)
-		attributefree(class->methods[i].attributes, class->methods[i].attributes_count);
+		if (class->methods)
+			attributefree(class->methods[i].attributes, class->methods[i].attributes_count);
 	free(class->methods);
 	attributefree(class->attributes, class->attributes_count);
 	free(class);
@@ -313,7 +462,7 @@ class_read(char *s)
 		errtag = ERR_MAGIC;
 		goto error;
 	}
-	class = ecalloc(1, sizeof *class);
+	class = fcalloc(1, sizeof *class);
 	class->minor_version = readu(2);
 	class->major_version = readu(2);
 	class->constant_pool_count = readu(2);
@@ -330,12 +479,14 @@ class_read(char *s)
 	class->attributes_count = readu(2);
 	class->attributes = readattributes(class, class->attributes_count);
 	fclose(filep);
+	delfree();
 	return class;
 error:
 	if (filep != NULL) {
 		fclose(filep);
 		filep = NULL;
 	}
+	freestack(class);
 	class_free(class);
 	return NULL;
 }
@@ -344,19 +495,19 @@ error:
 char *
 class_geterr(void)
 {
-	switch (errtag) {
-	case ERR_NONE:
-		return NULL;
-	case ERR_OPEN:
-	case ERR_READ:
+
+	static char *errstr[] = {
+		[ERR_NONE] = NULL,
+		[ERR_OPEN] = NULL,
+		[ERR_READ] = NULL,
+		[ERR_EOF] = "unexpected end of file",
+		[ERR_CONSTANT] = "reference to entry of wrong type on constant pool",
+		[ERR_INDEX] = "index to constant pool out of bounds",
+		[ERR_MAGIC] = "invalid magic number",
+		[ERR_ALLOC] = "out of memory",
+	};
+
+	if (errtag == ERR_OPEN || errtag == ERR_READ)
 		return strerror(saverrno);
-	case ERR_EOF:
-		return "unexpected end of file";
-	case ERR_CONSTANT:
-		return "reference to entry of wrong type on constant pool";
-	case ERR_INDEX:
-		return "index to constant pool out of bounds";
-	case ERR_MAGIC:
-		return "invalid magic number";
-	}
+	return errstr[errtag];
 }
