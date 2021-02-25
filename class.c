@@ -288,7 +288,7 @@ readindices(U2 count)
 	return indices;
 }
 
-/* reaed exception table, return point to exception array */
+/* read exception table, return point to exception array */
 static Exception *
 readexceptions(U2 count)
 {
@@ -308,7 +308,7 @@ readexceptions(U2 count)
 	return p;
 }
 
-/* reaed inner class table, return point to class array */
+/* read inner class table, return point to class array */
 static InnerClass *
 readclasses(U2 count)
 {
@@ -323,6 +323,45 @@ readclasses(U2 count)
 		p[i].outer_class_info_index = readu(2);
 		p[i].inner_name_index = readu(2);
 		p[i].inner_class_access_flags = readu(2);
+	}
+	popfreestack();
+	return p;
+}
+
+/* read line number table, return point to LineNumber array */
+static LineNumber *
+readlinenumber(U2 count)
+{
+	LineNumber *p;
+	U2 i;
+
+	if (count == 0)
+		return NULL;
+	p = fcalloc(count, sizeof *p);
+	for (i = 0; i < count; i++) {
+		p[i].start_pc = readu(2);
+		p[i].line_number = readu(2);
+	}
+	popfreestack();
+	return p;
+}
+
+/* read local variable table, return point to LocalVariable array */
+static LocalVariable *
+readlocalvariable(U2 count)
+{
+	LocalVariable *p;
+	U2 i;
+
+	if (count == 0)
+		return NULL;
+	p = fcalloc(count, sizeof *p);
+	for (i = 0; i < count; i++) {
+		p[i].start_pc = readu(2);
+		p[i].length = readu(2);
+		p[i].name_index = readu(2);
+		p[i].descriptor_index = readu(2);
+		p[i].index = readu(2);
 	}
 	popfreestack();
 	return p;
@@ -378,10 +417,18 @@ readattributes(ClassFile *class, U2 count)
 			p[i].info.innerclasses.classes = readclasses(p[i].info.innerclasses.number_of_classes);
 			break;
 		case SourceFile:
+			p[i].info.sourcefile.sourcefile_index = readu(2);
+			break;
 		case Synthetic:
 			break;
 		case LineNumberTable:
+			p[i].info.linenumbertable.line_number_table_length = readu(2);
+			p[i].info.linenumbertable.line_number_table = readlinenumber(p[i].info.linenumbertable.line_number_table_length);
+			break;
 		case LocalVariableTable:
+			p[i].info.localvariabletable.local_variable_table_length = readu(2);
+			p[i].info.localvariabletable.local_variable_table = readlocalvariable(p[i].info.localvariabletable.local_variable_table_length);
+			break;
 		case UnknownAttribute:
 			while (length-- > 0)
 				read(&b, 1);
@@ -389,7 +436,7 @@ readattributes(ClassFile *class, U2 count)
 		}
 	}
 	popfreestack();
-	return NULL;
+	return p;
 }
 
 /* read fields, reaturn pointer to fields array */
@@ -444,8 +491,11 @@ attributefree(Attribute *attr, U2 count)
 		return;
 	for (i = 0; i < count; i++) {
 		switch (attr[i].tag) {
+		case UnknownAttribute:
 		case ConstantValue:
 		case Deprecated:
+		case SourceFile:
+		case Synthetic:
 			break;
 		case Code:
 			free(attr[i].info.code.code);
@@ -458,12 +508,11 @@ attributefree(Attribute *attr, U2 count)
 		case InnerClasses:
 			free(attr[i].info.innerclasses.classes);
 			break;
-		case SourceFile:
-		case Synthetic:
-			break;
 		case LineNumberTable:
+			free(attr[i].info.linenumbertable.line_number_table);
+			break;
 		case LocalVariableTable:
-		case UnknownAttribute:
+			free(attr[i].info.localvariabletable.local_variable_table);
 			break;
 		}
 	}
