@@ -272,6 +272,22 @@ readcode(U4 count)
 	return code;
 }
 
+/* read indices to constant pool, return point to index array */
+static U2 *
+readindices(U2 count)
+{
+	U2 *indices;
+	U2 i;
+
+	if (count == 0)
+		return NULL;
+	indices = fcalloc(count, sizeof *indices);
+	for (i = 0; i < count; i++)
+		indices[i] = readu(2);
+	popfreestack();
+	return indices;
+}
+
 /* reaed exception table, return point to exception array */
 static Exception *
 readexceptions(U2 count)
@@ -287,6 +303,26 @@ readexceptions(U2 count)
 		p[i].end_pc = readu(2);
 		p[i].handler_pc = readu(2);
 		p[i].catch_type = readu(2);
+	}
+	popfreestack();
+	return p;
+}
+
+/* reaed inner class table, return point to class array */
+static InnerClass *
+readclasses(U2 count)
+{
+	InnerClass *p;
+	U2 i;
+
+	if (count == 0)
+		return NULL;
+	p = fcalloc(count, sizeof *p);
+	for (i = 0; i < count; i++) {
+		p[i].inner_class_info_index = readu(2);
+		p[i].outer_class_info_index = readu(2);
+		p[i].inner_name_index = readu(2);
+		p[i].inner_class_access_flags = readu(2);
 	}
 	popfreestack();
 	return p;
@@ -332,10 +368,18 @@ readattributes(ClassFile *class, U2 count)
 			p[i].info.code.attributes = readattributes(class, p[i].info.code.attributes_count);
 			break;
 		case Depcreated:
+			break;
 		case Exceptions:
+			p[i].info.exceptions.number_of_exceptions = readu(2);
+			p[i].info.exceptions.exception_index_table = readindices(p[i].info.exceptions.number_of_exceptions);
+			break;
 		case InnerClasses:
+			p[i].info.innerclasses.number_of_classes = readu(2);
+			p[i].info.innerclasses.classes = readclasses(p[i].info.innerclasses.number_of_classes);
+			break;
 		case SourceFile:
 		case Synthetic:
+			break;
 		case LineNumberTable:
 		case LocalVariableTable:
 		case UnknownAttribute:
@@ -401,17 +445,22 @@ attributefree(Attribute *attr, U2 count)
 	for (i = 0; i < count; i++) {
 		switch (attr[i].tag) {
 		case ConstantValue:
+		case Depcreated:
 			break;
 		case Code:
 			free(attr[i].info.code.code);
 			free(attr[i].info.code.exception_table);
 			attributefree(attr[i].info.code.attributes, attr[i].info.code.attributes_count);
 			break;
-		case Depcreated:
 		case Exceptions:
+			free(attr[i].info.exceptions.exception_index_table);
+			break;
 		case InnerClasses:
+			free(attr[i].info.innerclasses.classes);
+			break;
 		case SourceFile:
 		case Synthetic:
+			break;
 		case LineNumberTable:
 		case LocalVariableTable:
 		case UnknownAttribute:

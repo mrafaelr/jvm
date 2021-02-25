@@ -19,7 +19,9 @@ void
 err(int eval, const char *fmt, ...)
 {
 	va_list ap;
+	int saverrno;
 
+	saverrno = errno;
 	if (progname)
 		(void)fprintf(stderr, "%s: ", progname);
 	va_start(ap, fmt);
@@ -28,7 +30,7 @@ err(int eval, const char *fmt, ...)
 		(void)fprintf(stderr, ": ");
 	}
 	va_end(ap);
-	(void)fprintf(stderr, "%s\n", strerror(errno));
+	(void)fprintf(stderr, "%s\n", strerror(saverrno));
 	exit(eval);
 }
 
@@ -53,7 +55,9 @@ void
 warn(const char *fmt, ...)
 {
 	va_list ap;
+	int saverrno;
 
+	saverrno = errno;
 	if (progname)
 		(void)fprintf(stderr, "%s: ", progname);
 	va_start(ap, fmt);
@@ -62,7 +66,7 @@ warn(const char *fmt, ...)
 		(void)fprintf(stderr, ": ");
 	}
 	va_end(ap);
-	(void)fprintf(stderr, "%s\n", strerror(errno));
+	(void)fprintf(stderr, "%s\n", strerror(saverrno));
 }
 
 /* print format error message */
