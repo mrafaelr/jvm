@@ -132,19 +132,6 @@ read(void *buf, U4 count)
 	}
 }
 
-/* read string of length count into buf; insert a nul at the end of it */
-static char *
-reads(U2 count)
-{
-	char *s;
-
-	s = fmalloc(count + 1);
-	read(s, count);
-	s[count] = '\0';
-	delfree();
-	return s;
-}
-
 /* read unsigned integer U4 and return it */
 static U4
 readu(U2 count)
@@ -168,6 +155,19 @@ readu(U2 count)
 
 }
 
+/* read string of length count into buf; insert a nul at the end of it */
+static char *
+readutf8(U2 count)
+{
+	char *s;
+
+	s = fmalloc(count + 1);
+	read(s, count);
+	s[count] = '\0';
+	delfree();
+	return s;
+}
+
 /* read constant pool, return pointer to constant pool array */
 static CP *
 readcp(U2 count)
@@ -183,7 +183,7 @@ readcp(U2 count)
 		switch (cp[i].tag) {
 		case CONSTANT_Utf8:
 			cp[i].info.utf8_info.length = readu(2);
-			cp[i].info.utf8_info.bytes = reads(cp[i].info.utf8_info.length);
+			cp[i].info.utf8_info.bytes = readutf8(cp[i].info.utf8_info.length);
 			break;
 		case CONSTANT_Integer:
 			cp[i].info.integer_info.bytes = readu(4);
