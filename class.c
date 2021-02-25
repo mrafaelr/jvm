@@ -49,15 +49,14 @@ popfreestack(void)
 
 /* free stack of pointers to be freed when an error occurs */
 static void
-freestack(void *classp)
+freestack(void)
 {
 	struct FreeStack *f;
 
 	while (freep) {
 		f = freep;
 		freep = f->next;
-		if (f->p != classp)
-			free(f->p);
+		free(f->p);
 		free(f);
 	}
 }
@@ -462,7 +461,10 @@ class_read(char *s)
 		errtag = ERR_MAGIC;
 		goto error;
 	}
-	class = fcalloc(1, sizeof *class);
+	if ((class = calloc(1, sizeof *class)) == NULL) {
+		errtag = ERR_ALLOC;
+		goto error;
+	}
 	class->minor_version = readu(2);
 	class->major_version = readu(2);
 	class->constant_pool_count = readu(2);
@@ -486,7 +488,7 @@ error:
 		fclose(filep);
 		filep = NULL;
 	}
-	freestack(class);
+	freestack();
 	class_free(class);
 	return NULL;
 }
