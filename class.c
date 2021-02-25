@@ -403,6 +403,10 @@ attributefree(Attribute *attr, U2 count)
 		case ConstantValue:
 			break;
 		case Code:
+			free(attr[i].info.code.code);
+			free(attr[i].info.code.exception_table);
+			attributefree(attr[i].info.code.attributes, attr[i].info.code.attributes_count);
+			break;
 		case Depcreated:
 		case Exceptions:
 		case InnerClasses:
@@ -481,7 +485,6 @@ class_read(char *s)
 	class->attributes_count = readu(2);
 	class->attributes = readattributes(class, class->attributes_count);
 	fclose(filep);
-	popfreestack();
 	return class;
 error:
 	if (filep != NULL) {
