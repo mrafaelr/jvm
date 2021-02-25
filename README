@@ -1,0 +1,18 @@
+                                  jvm
+
+This is the implementation of a simple Java Virtual Machine.  This is
+the final project of the first semester of 2021 of the Basic Software
+course of the Computer Science department of the University of Brasilia.
+
+Since the professor uses Microsoft Windows™, he expects all alumni to
+write portable ISO C99 code; I cannot use thus the high-quality POSIX
+extensions to C, which is such a shame.
+
+
+§ See Also
+
+The Java® Virtual Machine Specification: Java SE 8Edition,
+by Tim Lindholm, Frank Yellin, Gilad Bracha, Alex Buckley,
+Addison-Wesley, 2014.
+ISBN: 978-0-13-390590-8.
+https://docs.oracle.com/javase/specs/jvms/se8/html/
