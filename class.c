@@ -62,7 +62,7 @@ freestack(void *classp)
 	}
 }
 
-/* call malloc; add returned pointer to stack of pointers to be freed */
+/* call malloc; add returned pointer to stack of pointers to be freed when error occurs */
 static void *
 fmalloc(size_t size)
 {
@@ -76,7 +76,7 @@ fmalloc(size_t size)
 	return p;
 }
 
-/* call calloc; add returned pointer to stack of pointers to be freed */
+/* call calloc; add returned pointer to stack of pointers to be freed when error occurs */
 static void *
 fcalloc(size_t nmemb, size_t size)
 {
