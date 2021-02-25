@@ -36,7 +36,7 @@ addfree(void *p)
 	freep = f;
 }
 
-/* free stack of pointers to be freed when an error occurs */
+/* free head of stack of pointers to be freed when an error occurs */
 static void
 delfree(void)
 {
