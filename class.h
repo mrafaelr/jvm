@@ -1,12 +1,11 @@
-#ifndef _CLASS_H_
-#define _CLASS_H_
+#include <stdint.h>
 
 typedef uint8_t  U1;
 typedef uint16_t U2;
 typedef uint32_t U4;
 
 typedef enum ErrorTag {
-	ERR_NONE,
+	ERR_NONE = 0,
 	ERR_OPEN,
 	ERR_READ,
 	ERR_EOF,
@@ -266,8 +265,4 @@ typedef struct ClassFile {
 	struct Attribute *attributes;
 } ClassFile;
 
-void class_free(ClassFile *class);
-ClassFile *class_read(char *s);
-char *class_geterr(void);
-
-#endif /* _CLASS_H_ */
+char *class_strerr(enum ErrorTag errtag);

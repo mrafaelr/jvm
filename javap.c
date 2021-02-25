@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "class.h"
+#include "file.h"
 #include "util.h"
 
 static int cflag = 0;
@@ -89,11 +90,11 @@ main(int argc, char *argv[])
 	if (argc == 0)
 		usage();
 	while (argc--) {
-		if ((class = class_read(*argv)) != NULL) {
+		if ((class = file_read(*argv)) != NULL) {
 			javap(class);
-			class_free(class);
+			file_free(class);
 		} else {
-			warnx("%s: %s", *argv, class_geterr());
+			warnx("%s: %s", *argv, file_geterr());
 			exitval = 1;
 		}
 		argv++;
