@@ -16,10 +16,9 @@ static char *filename;
 /* error variables */
 static int saverrno;
 static ErrorTag errtag = ERR_NONE;
-static U4 errval;
 
 /* get attribute tag from string */
-AttributeTag
+static AttributeTag
 getattributetag(char *tagstr)
 {
 	static struct {
@@ -179,17 +178,54 @@ readinterfaces(U2 count)
 	return p;
 }
 
+/* read attribute list, longjmp to class_read on error */
 static Attribute *
-readattributes(U2 count)
+readattributes(ClassFile *class, U2 count)
 {
+	Attribute *p;
+	U4 length;
+	U2 index;
+	U2 i;
+	U1 b;
+
 	if (count == 0)
 		return NULL;
+	p = ecalloc(count, sizeof *p);
+	for (i = 0; i < count; i++) {
+		index = readu(2);
+		length = readu(4);
+		if (index < 1 || index >= class->constant_pool_count) {
+			errtag = ERR_INDEX;
+			longjmp(jmpenv, 1);
+		}
+		if (class->constant_pool[index].tag != CONSTANT_Utf8) {
+			errtag = ERR_CONSTANT;
+			longjmp(jmpenv, 1);
+		}
+		p[i].tag = getattributetag(class->constant_pool[index].info.utf8_info.bytes);
+		printf("%s\n", class->constant_pool[index].info.utf8_info.bytes);
+		switch (p[i].tag) {
+		case ConstantValue:
+		case Code:
+		case Depcreated:
+		case Exceptions:
+		case InnerClasses:
+		case SourceFile:
+		case Synthetic:
+		case LineNumberTable:
+		case LocalVariableTable:
+		case UnknownAttribute:
+			while (length-- > 0)
+				read(&b, 1);
+			break;
+		}
+	}
 	return NULL;
 }
 
 /* read fields, reaturn pointer to fields array */
 static Field *
-readfields(U2 count)
+readfields(ClassFile *class, U2 count)
 {
 	Field *p;
 	U2 i;
@@ -202,14 +238,14 @@ readfields(U2 count)
 		p[i].name_index = readu(2);
 		p[i].descriptor_index = readu(2);
 		p[i].attributes_count = readu(2);
-		p[i].attributes = readattributes(p[i].attributes_count);
+		p[i].attributes = readattributes(class, p[i].attributes_count);
 	}
 	return p;
 }
 
 /* read methods, reaturn pointer to methods array */
 static Method *
-readmethods(U2 count)
+readmethods(ClassFile *class, U2 count)
 {
 	Method *p;
 	U2 i;
@@ -222,7 +258,7 @@ readmethods(U2 count)
 		p[i].name_index = readu(2);
 		p[i].descriptor_index = readu(2);
 		p[i].attributes_count = readu(2);
-		p[i].attributes = readattributes(p[i].attributes_count);
+		p[i].attributes = readattributes(class, p[i].attributes_count);
 	}
 	return p;
 }
@@ -263,6 +299,7 @@ ClassFile *
 class_read(char *s)
 {
 	ClassFile *class = NULL;
+	U4 u;
 
 	filename = s;
 	if ((filep = fopen(filename, "rb")) == NULL) {
@@ -272,7 +309,7 @@ class_read(char *s)
 	}
 	if (setjmp(jmpenv))
 		goto error;
-	if ((errval = readu(4)) != MAGIC) {
+	if ((u = readu(4)) != MAGIC) {
 		errtag = ERR_MAGIC;
 		goto error;
 	}
@@ -287,11 +324,11 @@ class_read(char *s)
 	class->interfaces_count = readu(2);
 	class->interfaces = readinterfaces(class->interfaces_count);
 	class->fields_count = readu(2);
-	class->fields = readfields(class->fields_count);
+	class->fields = readfields(class, class->fields_count);
 	class->methods_count = readu(2);
-	class->methods = readmethods(class->methods_count);
+	class->methods = readmethods(class, class->methods_count);
 	class->attributes_count = readu(2);
-	class->attributes = readattributes(class->attributes_count);
+	class->attributes = readattributes(class, class->attributes_count);
 	fclose(filep);
 	return class;
 error:
@@ -307,8 +344,6 @@ error:
 char *
 class_geterr(void)
 {
-	static char buf[128];
-
 	switch (errtag) {
 	case ERR_NONE:
 		return NULL;
@@ -317,12 +352,11 @@ class_geterr(void)
 		return strerror(saverrno);
 	case ERR_EOF:
 		return "unexpected end of file";
-	case ERR_MAGIC:
-		snprintf(buf, sizeof buf, "invalid magic number \"%0llx\"", (unsigned long long)errval);
-		break;
 	case ERR_CONSTANT:
-		snprintf(buf, sizeof buf, "unknown constant tag \"%0llu\"", (unsigned long long)errval);
-		break;
+		return "reference to entry of wrong type on constant pool";
+	case ERR_INDEX:
+		return "index to constant pool out of bounds";
+	case ERR_MAGIC:
+		return "invalid magic number";
 	}
-	return buf;
 }

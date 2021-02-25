@@ -10,8 +10,9 @@ typedef enum ErrorTag {
 	ERR_OPEN,
 	ERR_READ,
 	ERR_EOF,
-	ERR_MAGIC,
 	ERR_CONSTANT,
+	ERR_INDEX,
+	ERR_MAGIC,
 } ErrorTag;
 
 typedef enum ConstantTag {
