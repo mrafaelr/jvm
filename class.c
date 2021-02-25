@@ -156,7 +156,7 @@ readu(U2 count)
 
 /* read string of length count into buf; insert a nul at the end of it */
 static char *
-readutf8(U2 count)
+reads(U2 count)
 {
 	char *s;
 
@@ -182,7 +182,7 @@ readcp(U2 count)
 		switch (cp[i].tag) {
 		case CONSTANT_Utf8:
 			cp[i].info.utf8_info.length = readu(2);
-			cp[i].info.utf8_info.bytes = readutf8(cp[i].info.utf8_info.length);
+			cp[i].info.utf8_info.bytes = reads(cp[i].info.utf8_info.length);
 			break;
 		case CONSTANT_Integer:
 			cp[i].info.integer_info.bytes = readu(4);
@@ -607,7 +607,7 @@ class_geterr(void)
 		[ERR_CONSTANT] = "reference to entry of wrong type on constant pool",
 		[ERR_INDEX] = "index to constant pool out of bounds",
 		[ERR_MAGIC] = "invalid magic number",
-		[ERR_ALLOC] = "out of memory",
+		[ERR_ALLOC] = "could not allocate memory",
 	};
 
 	if (errtag == ERR_OPEN || errtag == ERR_READ)
