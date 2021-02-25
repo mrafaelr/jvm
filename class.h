@@ -131,69 +131,6 @@ typedef struct CONSTANT_InvokeDynamic_info {
 	U2      name_and_type_index;
 } CONSTANT_InvokeDynamic_info;
 
-typedef struct CP {
-	U1      tag;
-	union {
-		struct CONSTANT_Utf8_info               utf8_info;
-		struct CONSTANT_Integer_info            integer_info;
-		struct CONSTANT_Float_info              float_info;
-		struct CONSTANT_Long_info               long_info;
-		struct CONSTANT_Double_info             double_info;
-		struct CONSTANT_Class_info              class_info;
-		struct CONSTANT_String_info             string_info;
-		struct CONSTANT_Fieldref_info           fieldref_info;
-		struct CONSTANT_Methodref_info          methodref_info;
-		struct CONSTANT_InterfaceMethodref_info interfacemethodref_info;
-		struct CONSTANT_NameAndType_info        nameandtype_info;
-		struct CONSTANT_MethodHandle_info       methodhandle_info;
-		struct CONSTANT_MethodType_info         methodtype_info;
-		struct CONSTANT_InvokeDynamic_info      invokedynamic_info;
-	}       info;
-} CP;
-
-typedef struct Field {
-	U2      access_flags;
-	U2      name_index;
-	U2      descriptor_index;
-	U2      attributes_count;
-	U2     *attributes;
-} Field;
-
-typedef struct Method {
-	U2      access_flags;
-	U2      name_index;
-	U2      descriptor_index;
-	U2      attributes_count;
-	U2     *attributes;
-} Method;
-
-typedef struct Exception {
-	U2      start_pc;
-	U2      end_pc;
-	U2      handler_pc;
-	U2      catch_type;
-} Exception;
-
-typedef struct InnerClass {
-	U2      inner_class_info_index;
-	U2      outer_class_info_index;
-	U2      inner_name_index;
-	U2      inner_class_access_flags;
-} InnerClass;
-
-typedef struct LineNumber {
-	U2      start_pc;
-	U2      line_number;
-} LineNumber;
-
-typedef struct LocalVariable {
-	U2      start_pc;
-	U2      length;
-	U2      name_index;
-	U2      descriptor_index;
-	U2      index;
-} LocalVariable;
-
 typedef struct ConstantValue_attribute {
 	U2      constantvalue_index;
 } ConstantValue_attribute;
@@ -233,6 +170,26 @@ typedef struct LocalVariableTable_attribute {
 	struct LocalVariable   *local_variable_table;
 } LocalVariableTable_attribute;
 
+typedef struct CP {
+	U1      tag;
+	union {
+		struct CONSTANT_Utf8_info               utf8_info;
+		struct CONSTANT_Integer_info            integer_info;
+		struct CONSTANT_Float_info              float_info;
+		struct CONSTANT_Long_info               long_info;
+		struct CONSTANT_Double_info             double_info;
+		struct CONSTANT_Class_info              class_info;
+		struct CONSTANT_String_info             string_info;
+		struct CONSTANT_Fieldref_info           fieldref_info;
+		struct CONSTANT_Methodref_info          methodref_info;
+		struct CONSTANT_InterfaceMethodref_info interfacemethodref_info;
+		struct CONSTANT_NameAndType_info        nameandtype_info;
+		struct CONSTANT_MethodHandle_info       methodhandle_info;
+		struct CONSTANT_MethodType_info         methodtype_info;
+		struct CONSTANT_InvokeDynamic_info      invokedynamic_info;
+	}       info;
+} CP;
+
 typedef struct Attribute {
 	enum AttributeTag                               tag;
 	union {
@@ -245,6 +202,49 @@ typedef struct Attribute {
 		struct LocalVariableTable_attribute     localvariabletable;
 	}       info;
 } Attribute;
+
+typedef struct Field {
+	U2                      access_flags;
+	U2                      name_index;
+	U2                      descriptor_index;
+	U2                      attributes_count;
+	struct Attribute       *attributes;
+} Field;
+
+typedef struct Method {
+	U2                      access_flags;
+	U2                      name_index;
+	U2                      descriptor_index;
+	U2                      attributes_count;
+	struct Attribute       *attributes;
+} Method;
+
+typedef struct Exception {
+	U2      start_pc;
+	U2      end_pc;
+	U2      handler_pc;
+	U2      catch_type;
+} Exception;
+
+typedef struct InnerClass {
+	U2      inner_class_info_index;
+	U2      outer_class_info_index;
+	U2      inner_name_index;
+	U2      inner_class_access_flags;
+} InnerClass;
+
+typedef struct LineNumber {
+	U2      start_pc;
+	U2      line_number;
+} LineNumber;
+
+typedef struct LocalVariable {
+	U2      start_pc;
+	U2      length;
+	U2      name_index;
+	U2      descriptor_index;
+	U2      index;
+} LocalVariable;
 
 typedef struct ClassFile {
 	U2                minor_version;

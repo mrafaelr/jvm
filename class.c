@@ -98,6 +98,8 @@ readcp(U2 count)
 	CP *cp;
 	U2 i;
 
+	if (count == 0)
+		return NULL;
 	cp = ecalloc(count, sizeof *cp);
 	for (i = 1; i < count; i++) {
 		cp[i].tag = readu(1);
@@ -162,49 +164,97 @@ readcp(U2 count)
 	return cp;
 }
 
+/* read interface indices, return pointer to interfaces array */
+static U2 *
+readinterfaces(U2 count)
+{
+	U2 *p;
+	U2 i;
+
+	if (count == 0)
+		return NULL;
+	p = ecalloc(count, sizeof *p);
+	for (i = 0; i < count; i++)
+		p[i] = readu(2);
+	return p;
+}
+
+static Attribute *
+readattributes(U2 count)
+{
+	if (count == 0)
+		return NULL;
+	return NULL;
+}
+
+/* read fields, reaturn pointer to fields array */
+static Field *
+readfields(U2 count)
+{
+	Field *p;
+	U2 i;
+
+	if (count == 0)
+		return NULL;
+	p = ecalloc(count, sizeof *p);
+	for (i = 0; i < count; i++) {
+		p[i].access_flags = readu(2);
+		p[i].name_index = readu(2);
+		p[i].descriptor_index = readu(2);
+		p[i].attributes_count = readu(2);
+		p[i].attributes = readattributes(p[i].attributes_count);
+	}
+	return p;
+}
+
+/* read methods, reaturn pointer to methods array */
+static Method *
+readmethods(U2 count)
+{
+	Method *p;
+	U2 i;
+
+	if (count == 0)
+		return NULL;
+	p = ecalloc(count, sizeof *p);
+	for (i = 0; i < count; i++) {
+		p[i].access_flags = readu(2);
+		p[i].name_index = readu(2);
+		p[i].descriptor_index = readu(2);
+		p[i].attributes_count = readu(2);
+		p[i].attributes = readattributes(p[i].attributes_count);
+	}
+	return p;
+}
+
+/* free attribute */
+static void
+attributefree(Attribute *attr, U2 count)
+{
+	(void)count;
+	free(attr);
+}
+
 /* free class structure */
 void
 class_free(ClassFile *class)
 {
 	U2 i;
 
-	for (i = 1; i < class->constant_pool_count; i++) {
-		switch (class->constant_pool[i].tag) {
-		case CONSTANT_Utf8:
+	if (class == NULL)
+		return;
+	for (i = 1; i < class->constant_pool_count; i++)
+		if (class->constant_pool[i].tag == CONSTANT_Utf8)
 			free(class->constant_pool[i].info.utf8_info.bytes);
-			break;
-		case CONSTANT_Integer:
-			break;
-		case CONSTANT_Float:
-			break;
-		case CONSTANT_Long:
-			break;
-		case CONSTANT_Double:
-			break;
-		case CONSTANT_Class:
-			break;
-		case CONSTANT_String:
-			break;
-		case CONSTANT_Fieldref:
-			break;
-		case CONSTANT_Methodref:
-			break;
-		case CONSTANT_InterfaceMethodref:
-			break;
-		case CONSTANT_NameAndType:
-			break;
-		case CONSTANT_MethodHandle:
-			break;
-		case CONSTANT_MethodType:
-			break;
-		case CONSTANT_InvokeDynamic:
-			break;
-		default:
-			break;
-		}
-
-	}
 	free(class->constant_pool);
+	free(class->interfaces);
+	for (i = 0; i < class->fields_count; i++)
+		attributefree(class->fields[i].attributes, class->fields[i].attributes_count);
+	free(class->fields);
+	for (i = 0; i < class->methods_count; i++)
+		attributefree(class->methods[i].attributes, class->methods[i].attributes_count);
+	free(class->methods);
+	attributefree(class->attributes, class->attributes_count);
 	free(class);
 }
 
@@ -212,53 +262,44 @@ class_free(ClassFile *class)
 ClassFile *
 class_read(char *s)
 {
-	U4 u4;
 	ClassFile *class = NULL;
 
-	/* open file */
-	filep = NULL;
 	filename = s;
 	if ((filep = fopen(filename, "rb")) == NULL) {
 		saverrno = errno;
 		errtag = ERR_OPEN;
 		goto error;
 	}
-
-	/* set jump point */
 	if (setjmp(jmpenv))
 		goto error;
-
-	/* check magic number */
-	u4 = readu(4);
-	if (u4 != MAGIC) {
+	if ((errval = readu(4)) != MAGIC) {
 		errtag = ERR_MAGIC;
-		errval = u4;
 		goto error;
 	}
-
-	/* allocate ClassFile structure */
 	class = ecalloc(1, sizeof *class);
-	
-	/* get minor and major version */
 	class->minor_version = readu(2);
 	class->major_version = readu(2);
-
-	/* read constant pool */
 	class->constant_pool_count = readu(2);
 	class->constant_pool = readcp(class->constant_pool_count);
-
-	/* close filep and return ClassFile structure */
+	class->access_flags = readu(2);
+	class->this_class = readu(2);
+	class->super_class = readu(2);
+	class->interfaces_count = readu(2);
+	class->interfaces = readinterfaces(class->interfaces_count);
+	class->fields_count = readu(2);
+	class->fields = readfields(class->fields_count);
+	class->methods_count = readu(2);
+	class->methods = readmethods(class->methods_count);
+	class->attributes_count = readu(2);
+	class->attributes = readattributes(class->attributes_count);
 	fclose(filep);
 	return class;
-
 error:
 	if (filep != NULL) {
 		fclose(filep);
 		filep = NULL;
 	}
-	if (class != NULL) {
-		class_free(class);
-	}
+	class_free(class);
 	return NULL;
 }
 
