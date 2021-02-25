@@ -59,7 +59,7 @@ typedef enum AttributeTag {
 	UnknownAttribute,
 	ConstantValue,
 	Code,
-	Depcreated,
+	Deprecated,
 	Exceptions,
 	InnerClasses,
 	SourceFile,

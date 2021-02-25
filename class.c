@@ -99,7 +99,7 @@ getattributetag(char *tagstr)
 	} tags[] = {
 		{ConstantValue,      "ConstantValue"},
 		{Code,               "Code"},
-		{Depcreated,         "Depcreated"},
+		{Deprecated,         "Deprecated"},
 		{Exceptions,         "Exceptions"},
 		{InnerClasses,       "InnerClasses"},
 		{SourceFile,         "SourceFile"},
@@ -367,7 +367,7 @@ readattributes(ClassFile *class, U2 count)
 			p[i].info.code.attributes_count = readu(2);
 			p[i].info.code.attributes = readattributes(class, p[i].info.code.attributes_count);
 			break;
-		case Depcreated:
+		case Deprecated:
 			break;
 		case Exceptions:
 			p[i].info.exceptions.number_of_exceptions = readu(2);
@@ -445,7 +445,7 @@ attributefree(Attribute *attr, U2 count)
 	for (i = 0; i < count; i++) {
 		switch (attr[i].tag) {
 		case ConstantValue:
-		case Depcreated:
+		case Deprecated:
 			break;
 		case Code:
 			free(attr[i].info.code.code);
