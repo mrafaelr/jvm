@@ -25,7 +25,7 @@ static ErrorTag errtag = ERR_NONE;
 
 /* add pointer to stack of pointers to be freed when an error occurs */
 static void
-addfree(void *p)
+pushfreestack(void *p)
 {
 	struct FreeStack *f;
 
@@ -38,7 +38,7 @@ addfree(void *p)
 
 /* free head of stack of pointers to be freed when an error occurs */
 static void
-delfree(void)
+popfreestack(void)
 {
 	struct FreeStack *f;
 
@@ -72,7 +72,7 @@ fmalloc(size_t size)
 		errtag = ERR_ALLOC;
 		longjmp(jmpenv, 1);
 	}
-	addfree(p);
+	pushfreestack(p);
 	return p;
 }
 
@@ -86,7 +86,7 @@ fcalloc(size_t nmemb, size_t size)
 		errtag = ERR_ALLOC;
 		longjmp(jmpenv, 1);
 	}
-	addfree(p);
+	pushfreestack(p);
 	return p;
 }
 
@@ -164,7 +164,7 @@ readutf8(U2 count)
 	s = fmalloc(count + 1);
 	read(s, count);
 	s[count] = '\0';
-	delfree();
+	popfreestack();
 	return s;
 }
 
@@ -237,7 +237,7 @@ readcp(U2 count)
 			break;
 		}
 	}
-	delfree();
+	popfreestack();
 	return cp;
 }
 
@@ -253,7 +253,7 @@ readinterfaces(U2 count)
 	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++)
 		p[i] = readu(2);
-	delfree();
+	popfreestack();
 	return p;
 }
 
@@ -269,7 +269,7 @@ readcode(U4 count)
 	code = fmalloc(count);
 	for (i = 0; i < count; i++)
 		code[i] = readu(1);
-	delfree();
+	popfreestack();
 	return code;
 }
 
@@ -289,7 +289,7 @@ readexceptions(U2 count)
 		p[i].handler_pc = readu(2);
 		p[i].catch_type = readu(2);
 	}
-	delfree();
+	popfreestack();
 	return p;
 }
 
@@ -345,7 +345,7 @@ readattributes(ClassFile *class, U2 count)
 			break;
 		}
 	}
-	delfree();
+	popfreestack();
 	return NULL;
 }
 
@@ -366,7 +366,7 @@ readfields(ClassFile *class, U2 count)
 		p[i].attributes_count = readu(2);
 		p[i].attributes = readattributes(class, p[i].attributes_count);
 	}
-	delfree();
+	popfreestack();
 	return p;
 }
 
@@ -387,7 +387,7 @@ readmethods(ClassFile *class, U2 count)
 		p[i].attributes_count = readu(2);
 		p[i].attributes = readattributes(class, p[i].attributes_count);
 	}
-	delfree();
+	popfreestack();
 	return p;
 }
 
@@ -479,7 +479,7 @@ class_read(char *s)
 	class->attributes_count = readu(2);
 	class->attributes = readattributes(class, class->attributes_count);
 	fclose(filep);
-	delfree();
+	popfreestack();
 	return class;
 error:
 	if (filep != NULL) {
