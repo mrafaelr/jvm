@@ -4,17 +4,6 @@ typedef uint8_t  U1;
 typedef uint16_t U2;
 typedef uint32_t U4;
 
-typedef enum ErrorTag {
-	ERR_NONE = 0,
-	ERR_OPEN,
-	ERR_READ,
-	ERR_EOF,
-	ERR_CONSTANT,
-	ERR_INDEX,
-	ERR_MAGIC,
-	ERR_ALLOC,
-} ErrorTag;
-
 typedef enum ConstantTag {
 	CONSTANT_Untagged           = 0,
 	CONSTANT_Utf8               = 1,

@@ -14,6 +14,17 @@ struct FreeStack {
 	void *p;
 };
 
+enum ErrorTag {
+	ERR_NONE = 0,
+	ERR_OPEN,
+	ERR_READ,
+	ERR_EOF,
+	ERR_CONSTANT,
+	ERR_INDEX,
+	ERR_MAGIC,
+	ERR_ALLOC,
+};
+
 /* jmp variables */
 static jmp_buf jmpenv;
 static struct FreeStack *freep = NULL;
@@ -24,7 +35,17 @@ static char *filename;
 
 /* error variables */
 static int saverrno;
-static ErrorTag errtag = ERR_NONE;
+static enum ErrorTag errtag = ERR_NONE;
+static char *errstr[] = {
+	[ERR_NONE] = NULL,
+	[ERR_OPEN] = NULL,
+	[ERR_READ] = NULL,
+	[ERR_EOF] = "unexpected end of file",
+	[ERR_CONSTANT] = "reference to entry of wrong type on constant pool",
+	[ERR_INDEX] = "index to constant pool out of bounds",
+	[ERR_MAGIC] = "invalid magic number",
+	[ERR_ALLOC] = "could not allocate memory",
+};
 
 /* add pointer to stack of pointers to be freed when an error occurs */
 static void
@@ -603,5 +624,5 @@ file_geterr(void)
 {
 	if (errtag == ERR_OPEN || errtag == ERR_READ)
 		return strerror(saverrno);
-	return class_strerr(errtag);
+	return errstr[errtag];
 }
