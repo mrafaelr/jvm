@@ -221,14 +221,15 @@ reads(U2 count)
 
 /* read index to constant pool and check whether it is a valid index to a given tag */
 static U2
-readindex(ClassFile *class, ConstantTag tag)
+readindex(int canbezero, ClassFile *class, ConstantTag tag)
 {
 	U2 u;
 	U1 b[2];
 
 	read(b, 2);
 	u = (b[0] << 8) | b[1];
-	checkindex(class->constant_pool, class->constant_pool_count, tag, u);
+	if (!canbezero || u)
+		checkindex(class->constant_pool, class->constant_pool_count, tag, u);
 	return u;
 }
 
@@ -437,7 +438,7 @@ readexceptions(U2 count)
 
 /* read inner class table, return point to class array */
 static InnerClass *
-readclasses(U2 count)
+readclasses(ClassFile *class, U2 count)
 {
 	InnerClass *p;
 	U2 i;
@@ -446,9 +447,9 @@ readclasses(U2 count)
 		return NULL;
 	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++) {
-		p[i].inner_class_info_index = readu(2);
-		p[i].outer_class_info_index = readu(2);
-		p[i].inner_name_index = readu(2);
+		p[i].inner_class_info_index = readindex(0, class, CONSTANT_Class);
+		p[i].outer_class_info_index = readindex(1, class, CONSTANT_Class);
+		p[i].inner_name_index = readindex(0, class, CONSTANT_Utf8);
 		p[i].inner_class_access_flags = readu(2);
 	}
 	popfreestack();
@@ -475,7 +476,7 @@ readlinenumber(U2 count)
 
 /* read local variable table, return point to LocalVariable array */
 static LocalVariable *
-readlocalvariable(U2 count)
+readlocalvariable(ClassFile *class, U2 count)
 {
 	LocalVariable *p;
 	U2 i;
@@ -486,8 +487,8 @@ readlocalvariable(U2 count)
 	for (i = 0; i < count; i++) {
 		p[i].start_pc = readu(2);
 		p[i].length = readu(2);
-		p[i].name_index = readu(2);
-		p[i].descriptor_index = readu(2);
+		p[i].name_index = readindex(0, class, CONSTANT_Utf8);
+		p[i].descriptor_index = readindex(0, class, CONSTANT_Utf8);
 		p[i].index = readu(2);
 	}
 	popfreestack();
@@ -508,12 +509,12 @@ readattributes(ClassFile *class, U2 count)
 		return NULL;
 	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++) {
-		index = readindex(class, CONSTANT_Utf8);
+		index = readindex(0, class, CONSTANT_Utf8);
 		length = readu(4);
 		p[i].tag = getattributetag(class->constant_pool[index].info.utf8_info.bytes);
 		switch (p[i].tag) {
 		case ConstantValue:
-			p[i].info.constantvalue.constantvalue_index = readu(2);
+			p[i].info.constantvalue.constantvalue_index = readindex(0, class, 0);
 			break;
 		case Code:
 			p[i].info.code.max_stack = readu(2);
@@ -533,10 +534,10 @@ readattributes(ClassFile *class, U2 count)
 			break;
 		case InnerClasses:
 			p[i].info.innerclasses.number_of_classes = readu(2);
-			p[i].info.innerclasses.classes = readclasses(p[i].info.innerclasses.number_of_classes);
+			p[i].info.innerclasses.classes = readclasses(class, p[i].info.innerclasses.number_of_classes);
 			break;
 		case SourceFile:
-			p[i].info.sourcefile.sourcefile_index = readu(2);
+			p[i].info.sourcefile.sourcefile_index = readindex(0, class, CONSTANT_Utf8);
 			break;
 		case Synthetic:
 			break;
@@ -546,7 +547,7 @@ readattributes(ClassFile *class, U2 count)
 			break;
 		case LocalVariableTable:
 			p[i].info.localvariabletable.local_variable_table_length = readu(2);
-			p[i].info.localvariabletable.local_variable_table = readlocalvariable(p[i].info.localvariabletable.local_variable_table_length);
+			p[i].info.localvariabletable.local_variable_table = readlocalvariable(class, p[i].info.localvariabletable.local_variable_table_length);
 			break;
 		case UnknownAttribute:
 			while (length-- > 0)
@@ -570,8 +571,8 @@ readfields(ClassFile *class, U2 count)
 	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++) {
 		p[i].access_flags = readu(2);
-		p[i].name_index = readu(2);
-		p[i].descriptor_index = readu(2);
+		p[i].name_index = readindex(0, class, CONSTANT_Utf8);
+		p[i].descriptor_index = readindex(0, class, CONSTANT_Utf8);
 		p[i].attributes_count = readu(2);
 		p[i].attributes = readattributes(class, p[i].attributes_count);
 	}
@@ -591,8 +592,8 @@ readmethods(ClassFile *class, U2 count)
 	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++) {
 		p[i].access_flags = readu(2);
-		p[i].name_index = readu(2);
-		p[i].descriptor_index = readu(2);
+		p[i].name_index = readindex(0, class, CONSTANT_Utf8);
+		p[i].descriptor_index = readindex(0, class, CONSTANT_Utf8);
 		p[i].attributes_count = readu(2);
 		p[i].attributes = readattributes(class, p[i].attributes_count);
 	}
