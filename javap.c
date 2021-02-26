@@ -37,6 +37,16 @@ getutf8(ClassFile *class, U2 index)
 	return class->constant_pool[index].info.utf8_info.bytes;
 }
 
+/* check if super class is java.lang.Object */
+static int
+istopclass(ClassFile *class)
+{
+	char *s;
+
+	s = class->constant_pool[class->constant_pool[class->super_class].info.class_info.name_index].info.utf8_info.bytes;
+	return strcmp(s, "java/lang/Object") == 0;
+}
+
 /* print class name */
 static void
 printclass(ClassFile *class, U2 index)
@@ -92,7 +102,7 @@ printheader(ClassFile *class)
 		printf("class ");
 	}
 	printclass(class, class->this_class);
-	if (class->super_class) {
+	if (class->super_class && !istopclass(class)) {
 		printf(" extends ");
 		printclass(class, class->super_class);
 		;
@@ -295,7 +305,6 @@ main(int argc, char *argv[])
 			javap(class);
 			file_free(class);
 		} else {
-			warnx("%s: %s", *argv, file_geterr());
 			exitval = EXIT_FAILURE;
 		}
 		argv++;

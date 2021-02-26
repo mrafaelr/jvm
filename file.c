@@ -33,7 +33,6 @@ static struct FreeStack *freep = NULL;
 
 /* file variables */
 static FILE *filep;
-static char *filename;
 
 /* error variables */
 static int saverrno;
@@ -667,12 +666,11 @@ file_free(ClassFile *class)
 
 /* read class file */
 ClassFile *
-file_read(char *s)
+file_read(char *filename)
 {
 	ClassFile *class = NULL;
 	U4 u;
 
-	filename = s;
 	if ((filep = fopen(filename, "rb")) == NULL) {
 		saverrno = errno;
 		errtag = ERR_OPEN;
@@ -712,14 +710,9 @@ error:
 	}
 	freestack();
 	file_free(class);
-	return NULL;
-}
-
-/* return error string of current error */
-char *
-file_geterr(void)
-{
 	if (errtag == ERR_OPEN || errtag == ERR_READ)
-		return strerror(saverrno);
-	return errstr[errtag];
+		warnx("%s: %s", filename, strerror(saverrno));
+	else
+		warnx("%s: %s", filename, errstr[errtag]);
+	return NULL;
 }
