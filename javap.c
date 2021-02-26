@@ -15,7 +15,7 @@ static void
 usage(void)
 {
 	(void)fprintf(stderr, "usage: javap [-c|-p|-verbose] classfile...\n");
-	exit(1);
+	exit(EXIT_FAILURE);
 }
 
 /* get attribute with given tag in list of attributes */
@@ -70,6 +70,8 @@ printsource(ClassFile *class)
 static void
 printheader(ClassFile *class)
 {
+	U2 i;
+
 	if (class->access_flags & ACC_PUBLIC)
 		printf("public ");
 	if (class->access_flags & ACC_INTERFACE) {
@@ -94,6 +96,13 @@ printheader(ClassFile *class)
 		printf(" extends ");
 		printclass(class, class->super_class);
 		;
+	}
+	if (class->interfaces_count > 0)
+		printf(" implements ");
+	for (i = 0; i < class->interfaces_count; i++) {
+		if (i > 0)
+			printf(", ");
+		printclass(class, class->interfaces[i]);
 	}
 	printf(" {\n");
 }
@@ -132,6 +141,8 @@ printtype(char *type)
 				putchar(*s);
 			s++;
 		}
+		if (*s == ';')
+			s++;
 		break;
 	case 'S':
 		printf("short");
@@ -154,6 +165,7 @@ printtype(char *type)
 static void
 printdescriptor(char *descriptor, char *name, int init)
 {
+	int n;
 	char *s;
 
 	s = strrchr(descriptor, ')');
@@ -167,8 +179,12 @@ printdescriptor(char *descriptor, char *name, int init)
 		}
 		printf("%s(", name);
 		s = descriptor + 1;
+		n = 0;
 		while (*s && *s != ')') {
+			if (n)
+				printf(", ");
 			s = printtype(s);
+			n = 1;
 		}
 		putchar(')');
 	}
@@ -178,7 +194,7 @@ printdescriptor(char *descriptor, char *name, int init)
 static void
 printfield(ClassFile *class, Field *field)
 {
-	if (!pflag && field->access_flags & ACC_PROTECTED)
+	if (!pflag && field->access_flags & ACC_PRIVATE)
 		return;
 	printf("  ");
 	if (field->access_flags & ACC_PRIVATE)
@@ -206,7 +222,7 @@ printmethod(ClassFile *class, Method *method)
 	char *name;
 	int init = 0;
 
-	if (!pflag && method->access_flags & ACC_PROTECTED)
+	if (!pflag && method->access_flags & ACC_PRIVATE)
 		return;
 	name = getutf8(class, method->name_index);
 	if (strcmp(name, "<init>") == 0) {
@@ -256,7 +272,7 @@ int
 main(int argc, char *argv[])
 {
 	ClassFile *class;
-	int exitval = 0;
+	int exitval = EXIT_SUCCESS;
 
 	setprogname(argv[0]);
 	while (--argc > 0 && (*++argv)[0] == '-') {
@@ -280,7 +296,7 @@ main(int argc, char *argv[])
 			file_free(class);
 		} else {
 			warnx("%s: %s", *argv, file_geterr());
-			exitval = 1;
+			exitval = EXIT_FAILURE;
 		}
 		argv++;
 	}

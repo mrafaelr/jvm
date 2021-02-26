@@ -20,6 +20,8 @@ enum ErrorTag {
 	ERR_READ,
 	ERR_EOF,
 	ERR_CONSTANT,
+	ERR_UNKNOWN,
+	ERR_KIND,
 	ERR_INDEX,
 	ERR_MAGIC,
 	ERR_ALLOC,
@@ -42,6 +44,8 @@ static char *errstr[] = {
 	[ERR_READ] = NULL,
 	[ERR_EOF] = "unexpected end of file",
 	[ERR_CONSTANT] = "reference to entry of wrong type on constant pool",
+	[ERR_UNKNOWN] = "unknown constant pool tag",
+	[ERR_KIND] = "invalid method handle reference kind",
 	[ERR_INDEX] = "index to constant pool out of bounds",
 	[ERR_MAGIC] = "invalid magic number",
 	[ERR_ALLOC] = "could not allocate memory",
@@ -140,6 +144,30 @@ getattributetag(char *tagstr)
 	return tags[i].t;
 }
 
+/* check if kind of method handle is valid */
+static void
+checkkind(U1 kind)
+{
+	if (kind <= REF_none || kind >= REF_last) {
+		errtag = ERR_KIND;
+		longjmp(jmpenv, 1);
+	}
+}
+
+/* check if index is valid and points to a given tag in the constant pool */
+static void
+checkindex(CP *cp, U2 count, ConstantTag tag, U2 index)
+{
+	if (index < 1 || index >= count) {
+		errtag = ERR_INDEX;
+		longjmp(jmpenv, 1);
+	}
+	if (tag && cp[index].tag != tag) {
+		errtag = ERR_CONSTANT;
+		longjmp(jmpenv, 1);
+	}
+}
+
 /* read count bytes into buf; longjmp to class_read on error */
 static void
 read(void *buf, U4 count)
@@ -160,18 +188,18 @@ static U4
 readu(U2 count)
 {
 	U4 u = 0;
-	unsigned char c[4];
+	U1 b[4];
 
-	read(c, count);
+	read(b, count);
 	switch (count) {
 	case 4:
-		u = (c[0] << 24) | (c[1] << 16) | (c[2] << 8) | c[3];
+		u = (b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3];
 		break;
 	case 2:
-		u = (c[0] << 8) | c[1];
+		u = (b[0] << 8) | b[1];
 		break;
 	default:
-		u = c[0];
+		u = b[0];
 		break;
 	}
 	return u;
@@ -189,6 +217,19 @@ reads(U2 count)
 	s[count] = '\0';
 	popfreestack();
 	return s;
+}
+
+/* read index to constant pool and check whether it is a valid index to a given tag */
+static U2
+readindex(ClassFile *class, ConstantTag tag)
+{
+	U2 u;
+	U1 b[2];
+
+	read(b, 2);
+	u = (b[0] << 8) | b[1];
+	checkindex(class->constant_pool, class->constant_pool_count, tag, u);
+	return u;
 }
 
 /* read constant pool, return pointer to constant pool array */
@@ -256,11 +297,73 @@ readcp(U2 count)
 			cp[i].info.invokedynamic_info.name_and_type_index = readu(2);
 			break;
 		default:
-			cp[i].tag = CONSTANT_Untagged;
+			errtag = ERR_UNKNOWN;
+			longjmp(jmpenv, 1);
 			break;
 		}
 	}
 	popfreestack();
+	for (i = 1; i < count; i++) {
+		switch (cp[i].tag) {
+		case CONSTANT_Utf8:
+		case CONSTANT_Integer:
+		case CONSTANT_Float:
+		case CONSTANT_Long:
+		case CONSTANT_Double:
+			break;
+		case CONSTANT_Class:
+			break;
+		case CONSTANT_String:
+			checkindex(cp, count, CONSTANT_Utf8, cp[i].info.string_info.string_index);
+			break;
+		case CONSTANT_Fieldref:
+			checkindex(cp, count, CONSTANT_Class, cp[i].info.fieldref_info.class_index);
+			checkindex(cp, count, CONSTANT_NameAndType, cp[i].info.fieldref_info.name_and_type_index);
+			break;
+		case CONSTANT_Methodref:
+			checkindex(cp, count, CONSTANT_Class, cp[i].info.methodref_info.class_index);
+			checkindex(cp, count, CONSTANT_NameAndType, cp[i].info.methodref_info.name_and_type_index);
+			break;
+		case CONSTANT_InterfaceMethodref:
+			checkindex(cp, count, CONSTANT_Class, cp[i].info.interfacemethodref_info.class_index);
+			checkindex(cp, count, CONSTANT_NameAndType, cp[i].info.interfacemethodref_info.name_and_type_index);
+			break;
+		case CONSTANT_NameAndType:
+			checkindex(cp, count, CONSTANT_Utf8, cp[i].info.nameandtype_info.name_index);
+			checkindex(cp, count, CONSTANT_Utf8, cp[i].info.nameandtype_info.descriptor_index);
+			break;
+		case CONSTANT_MethodHandle:
+			checkkind(cp[i].info.methodhandle_info.reference_kind);
+			switch (cp[i].info.methodhandle_info.reference_kind) {
+			case REF_getField:
+			case REF_getStatic:
+			case REF_putField:
+			case REF_putStatic:
+				checkindex(cp, count, CONSTANT_Fieldref, cp[i].info.methodhandle_info.reference_index);
+				break;
+			case REF_invokeVirtual:
+			case REF_newInvokeSpecial:
+				checkindex(cp, count, CONSTANT_Methodref, cp[i].info.methodhandle_info.reference_index);
+				break;
+			case REF_invokeStatic:
+			case REF_invokeSpecial:
+				/* TODO check based on ClassFile version */
+				break;
+			case REF_invokeInterface:
+				checkindex(cp, count, CONSTANT_InterfaceMethodref, cp[i].info.methodhandle_info.reference_index);
+				break;
+			}
+			break;
+		case CONSTANT_MethodType:
+			checkindex(cp, count, CONSTANT_Utf8, cp[i].info.methodtype_info.descriptor_index);
+			break;
+		case CONSTANT_InvokeDynamic:
+			checkindex(cp, count, CONSTANT_NameAndType, cp[i].info.invokedynamic_info.name_and_type_index);
+			break;
+		default:
+			break;
+		}
+	}
 	return cp;
 }
 
@@ -405,16 +508,8 @@ readattributes(ClassFile *class, U2 count)
 		return NULL;
 	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++) {
-		index = readu(2);
+		index = readindex(class, CONSTANT_Utf8);
 		length = readu(4);
-		if (index < 1 || index >= class->constant_pool_count) {
-			errtag = ERR_INDEX;
-			longjmp(jmpenv, 1);
-		}
-		if (class->constant_pool[index].tag != CONSTANT_Utf8) {
-			errtag = ERR_CONSTANT;
-			longjmp(jmpenv, 1);
-		}
 		p[i].tag = getattributetag(class->constant_pool[index].info.utf8_info.bytes);
 		switch (p[i].tag) {
 		case ConstantValue:
@@ -551,17 +646,18 @@ file_free(ClassFile *class)
 
 	if (class == NULL)
 		return;
-	for (i = 1; i < class->constant_pool_count; i++)
-		if (class->constant_pool[i].tag == CONSTANT_Utf8)
-			free(class->constant_pool[i].info.utf8_info.bytes);
+	if (class->constant_pool)
+		for (i = 1; i < class->constant_pool_count; i++)
+			if (class->constant_pool[i].tag == CONSTANT_Utf8)
+				free(class->constant_pool[i].info.utf8_info.bytes);
 	free(class->constant_pool);
 	free(class->interfaces);
-	for (i = 0; i < class->fields_count; i++)
-		if (class->fields)
+	if (class->fields)
+		for (i = 0; i < class->fields_count; i++)
 			attributefree(class->fields[i].attributes, class->fields[i].attributes_count);
 	free(class->fields);
-	for (i = 0; i < class->methods_count; i++)
-		if (class->methods)
+	if (class->methods)
+		for (i = 0; i < class->methods_count; i++)
 			attributefree(class->methods[i].attributes, class->methods[i].attributes_count);
 	free(class->methods);
 	attributefree(class->attributes, class->attributes_count);

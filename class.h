@@ -56,6 +56,20 @@ typedef enum AttributeTag {
 	LocalVariableTable
 } AttributeTag;
 
+typedef enum ReferenceKind {
+	REF_none                = 0,
+	REF_getField            = 1,
+	REF_getStatic           = 2,
+	REF_putField            = 3,
+	REF_putStatic           = 4,
+	REF_invokeVirtual       = 5,
+	REF_invokeStatic        = 6,
+	REF_invokeSpecial       = 7,
+	REF_newInvokeSpecial    = 8,
+	REF_invokeInterface     = 9,
+	REF_last                = 10,
+} ReferenceKind;
+
 typedef struct CONSTANT_Utf8_info {
 	U2      length;
 	char   *bytes;
@@ -253,5 +267,3 @@ typedef struct ClassFile {
 	U2                attributes_count;
 	struct Attribute *attributes;
 } ClassFile;
-
-char *class_strerr(enum ErrorTag errtag);
