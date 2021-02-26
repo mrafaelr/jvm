@@ -6,11 +6,11 @@ LDFLAGS = ${LIBS}
 
 all: javap
 
-javap: javap.o util.o class.o
-	${CC} -o $@ javap.o util.o class.o ${LDFLAGS}
+javap: javap.o util.o class.o file.o
+	${CC} -o $@ javap.o util.o class.o file.o ${LDFLAGS}
 
-javap.o: class.h util.h
-class.o: class.h util.h
+javap.o: class.h file.h
+file.o:  class.h util.h
 
 .c.o:
 	${CC} ${CFLAGS} -c $<
