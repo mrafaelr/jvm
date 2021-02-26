@@ -18,13 +18,14 @@ enum ErrorTag {
 	ERR_NONE = 0,
 	ERR_OPEN,
 	ERR_READ,
-	ERR_EOF,
-	ERR_CONSTANT,
-	ERR_UNKNOWN,
-	ERR_KIND,
-	ERR_INDEX,
-	ERR_MAGIC,
 	ERR_ALLOC,
+	ERR_CONSTANT,
+	ERR_DESCRIPTOR,
+	ERR_EOF,
+	ERR_INDEX,
+	ERR_KIND,
+	ERR_MAGIC,
+	ERR_TAG,
 };
 
 /* jmp variables */
@@ -41,13 +42,14 @@ static char *errstr[] = {
 	[ERR_NONE] = NULL,
 	[ERR_OPEN] = NULL,
 	[ERR_READ] = NULL,
-	[ERR_EOF] = "unexpected end of file",
-	[ERR_CONSTANT] = "reference to entry of wrong type on constant pool",
-	[ERR_UNKNOWN] = "unknown constant pool tag",
-	[ERR_KIND] = "invalid method handle reference kind",
-	[ERR_INDEX] = "index to constant pool out of bounds",
-	[ERR_MAGIC] = "invalid magic number",
 	[ERR_ALLOC] = "could not allocate memory",
+	[ERR_CONSTANT] = "reference to entry of wrong type on constant pool",
+	[ERR_DESCRIPTOR] = "invalid descriptor string",
+	[ERR_EOF] = "unexpected end of file",
+	[ERR_INDEX] = "index to constant pool out of bounds",
+	[ERR_KIND] = "invalid method handle reference kind",
+	[ERR_MAGIC] = "invalid magic number",
+	[ERR_TAG] = "unknown constant pool tag",
 };
 
 /* add pointer to stack of pointers to be freed when an error occurs */
@@ -143,6 +145,40 @@ getattributetag(char *tagstr)
 	return tags[i].t;
 }
 
+/* check if string is valid field type, return pointer to next character: */
+static int
+isdescriptor(char *s)
+{
+	if (*s == '(') {
+		s++;
+		while (*s && *s != ')') {
+			if (*s == 'L') {
+				while (*s != '\0' && *s != ';')
+					s++;
+				if (*s == '\0')
+					return 0;
+			} else if (!strchr("BCDFIJSZ[", *s)) {
+				return 0;
+			}
+			s++;
+		}
+		if (*s != ')')
+			return 0;
+		s++;
+	}
+	do {
+		if (*s == 'L') {
+			while (*s != '\0' && *s != ';')
+				s++;
+			if (*s == '\0')
+				return 0;
+		} else if (!strchr("BCDFIJSVZ[", *s)) {
+			return 0;
+		}
+	} while (*s++ == '[');
+	return 1;
+}
+
 /* check if kind of method handle is valid */
 static void
 checkkind(U1 kind)
@@ -163,6 +199,24 @@ checkindex(CP *cp, U2 count, ConstantTag tag, U2 index)
 	}
 	if (tag && cp[index].tag != tag) {
 		errtag = ERR_CONSTANT;
+		longjmp(jmpenv, 1);
+	}
+}
+
+/* check if index is points to a valid descriptor in the constant pool */
+static void
+checkdescriptor(CP *cp, U2 count, U2 index)
+{
+	if (index < 1 || index >= count) {
+		errtag = ERR_INDEX;
+		longjmp(jmpenv, 1);
+	}
+	if (cp[index].tag != CONSTANT_Utf8) {
+		errtag = ERR_CONSTANT;
+		longjmp(jmpenv, 1);
+	}
+	if (!isdescriptor(cp[index].info.utf8_info.bytes)) {
+		errtag = ERR_DESCRIPTOR;
 		longjmp(jmpenv, 1);
 	}
 }
@@ -232,6 +286,19 @@ readindex(int canbezero, ClassFile *class, ConstantTag tag)
 	return u;
 }
 
+/* read descriptor index to constant pool and check whether it is a valid */
+static U2
+readdescriptor(ClassFile *class)
+{
+	U2 u;
+	U1 b[2];
+
+	read(b, 2);
+	u = (b[0] << 8) | b[1];
+	checkdescriptor(class->constant_pool, class->constant_pool_count, u);
+	return u;
+}
+
 /* read constant pool, return pointer to constant pool array */
 static CP *
 readcp(U2 count)
@@ -297,7 +364,7 @@ readcp(U2 count)
 			cp[i].info.invokedynamic_info.name_and_type_index = readu(2);
 			break;
 		default:
-			errtag = ERR_UNKNOWN;
+			errtag = ERR_TAG;
 			longjmp(jmpenv, 1);
 			break;
 		}
@@ -330,7 +397,7 @@ readcp(U2 count)
 			break;
 		case CONSTANT_NameAndType:
 			checkindex(cp, count, CONSTANT_Utf8, cp[i].info.nameandtype_info.name_index);
-			checkindex(cp, count, CONSTANT_Utf8, cp[i].info.nameandtype_info.descriptor_index);
+			checkdescriptor(cp, count, cp[i].info.nameandtype_info.descriptor_index);
 			break;
 		case CONSTANT_MethodHandle:
 			checkkind(cp[i].info.methodhandle_info.reference_kind);
@@ -355,7 +422,7 @@ readcp(U2 count)
 			}
 			break;
 		case CONSTANT_MethodType:
-			checkindex(cp, count, CONSTANT_Utf8, cp[i].info.methodtype_info.descriptor_index);
+			checkdescriptor(cp, count, cp[i].info.methodtype_info.descriptor_index);
 			break;
 		case CONSTANT_InvokeDynamic:
 			checkindex(cp, count, CONSTANT_NameAndType, cp[i].info.invokedynamic_info.name_and_type_index);
@@ -487,7 +554,7 @@ readlocalvariable(ClassFile *class, U2 count)
 		p[i].start_pc = readu(2);
 		p[i].length = readu(2);
 		p[i].name_index = readindex(0, class, CONSTANT_Utf8);
-		p[i].descriptor_index = readindex(0, class, CONSTANT_Utf8);
+		p[i].descriptor_index = readdescriptor(class);
 		p[i].index = readu(2);
 	}
 	popfreestack();
@@ -571,7 +638,7 @@ readfields(ClassFile *class, U2 count)
 	for (i = 0; i < count; i++) {
 		p[i].access_flags = readu(2);
 		p[i].name_index = readindex(0, class, CONSTANT_Utf8);
-		p[i].descriptor_index = readindex(0, class, CONSTANT_Utf8);
+		p[i].descriptor_index = readdescriptor(class);
 		p[i].attributes_count = readu(2);
 		p[i].attributes = readattributes(class, p[i].attributes_count);
 	}
@@ -592,7 +659,7 @@ readmethods(ClassFile *class, U2 count)
 	for (i = 0; i < count; i++) {
 		p[i].access_flags = readu(2);
 		p[i].name_index = readindex(0, class, CONSTANT_Utf8);
-		p[i].descriptor_index = readindex(0, class, CONSTANT_Utf8);
+		p[i].descriptor_index = readdescriptor(class);
 		p[i].attributes_count = readu(2);
 		p[i].attributes = readattributes(class, p[i].attributes_count);
 	}
