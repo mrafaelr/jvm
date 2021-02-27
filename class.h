@@ -3,6 +3,7 @@
 typedef uint8_t  U1;
 typedef uint16_t U2;
 typedef uint32_t U4;
+typedef uint64_t U8;
 
 typedef enum ConstantTag {
 	CONSTANT_Untagged           = 0,
@@ -21,6 +22,13 @@ typedef enum ConstantTag {
 	CONSTANT_MethodType         = 16,
 	CONSTANT_InvokeDynamic      = 18
 } ConstantTag;
+
+typedef enum FlagType {
+	TYPE_CLASS       = 0x01,
+	TYPE_FIELD       = 0x02,
+	TYPE_METHOD      = 0x04,
+	TYPE_INNER       = 0x08
+} FlagType;
 
 typedef enum AccessFlags {
 	ACC_PUBLIC       = 0x0001,

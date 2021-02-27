@@ -2,9 +2,11 @@
 #include <math.h>
 #include <setjmp.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include "class.h"
+#include "instr.h"
 #include "util.h"
 
 #define MAGIC           0xCAFEBABE
@@ -19,6 +21,7 @@ enum ErrorTag {
 	ERR_OPEN,
 	ERR_READ,
 	ERR_ALLOC,
+	ERR_CODE,
 	ERR_CONSTANT,
 	ERR_DESCRIPTOR,
 	ERR_EOF,
@@ -43,6 +46,7 @@ static char *errstr[] = {
 	[ERR_OPEN] = NULL,
 	[ERR_READ] = NULL,
 	[ERR_ALLOC] = "could not allocate memory",
+	[ERR_CODE] = "code does not follow jvm code constraints",
 	[ERR_CONSTANT] = "reference to entry of wrong type on constant pool",
 	[ERR_DESCRIPTOR] = "invalid descriptor string",
 	[ERR_EOF] = "unexpected end of file",
@@ -221,6 +225,97 @@ checkdescriptor(CP *cp, U2 count, U2 index)
 	}
 }
 
+/* check if code follows the JVM code constraints */
+static void
+checkcode(U1 *code, U4 count)
+{
+	int32_t j, npairs, high, low;
+	U1 opcode;
+	U4 i;
+	U4 a, b, c, d;
+
+	for (i = 0; i < count; i++) {
+		opcode = code[i];
+		if (opcode >= CodeLast)
+			goto error;
+		switch (instrtab[code[i]].noperands) {
+		case OP_WIDE:
+			if (++i >= count)
+				goto error;
+			switch (code[i]) {
+			case ILOAD:
+			case FLOAD:
+			case ALOAD:
+			case LLOAD:
+			case DLOAD:
+			case ISTORE:
+			case FSTORE:
+			case ASTORE:
+			case LSTORE:
+			case DSTORE:
+			case RET:
+				i += 2;
+				break;
+			case IINC:
+				i += 4;
+				break;
+			default:
+				goto error;
+				break;
+			}
+		case OP_LOOKUPSWITCH:
+			i++;
+			while (i % 4)
+				i++;
+			i += 4;
+			if (i + 4 > count)
+				goto error;
+			a = code[i++];
+			b = code[i++];
+			c = code[i++];
+			d = code[i];
+			npairs = (a << 24) | (b << 16) | (c << 8) | d;
+			if (npairs < 0)
+				goto error;
+			i += 8 * npairs;
+			i--;
+			break;
+		case OP_TABLESWITCH:
+			i++;
+			while (i % 4)
+				i++;
+			i += 4;
+			a = code[i++];
+			b = code[i++];
+			c = code[i++];
+			d = code[i++];
+			low = (a << 24) | (b << 16) | (c << 8) | d;
+			a = code[i++];
+			b = code[i++];
+			c = code[i++];
+			d = code[i];
+			high = (a << 24) | (b << 16) | (c << 8) | d;
+			if (low > high)
+				goto error;
+			for (j = 0; j < high - low + 1; j++)
+				i += 4;
+			i--;
+			break;
+		default:
+			for (j = 0; i < count && j < instrtab[opcode].noperands; j++)
+				i++;
+			break;
+		}
+	}
+	if (i != count)
+		goto error;
+	return;
+error:
+	printf("%x\n", code[i]);
+	errtag = ERR_CODE;
+	longjmp(jmpenv, 1);
+}
+
 /* read count bytes into buf; longjmp to class_read on error */
 static void
 read(void *buf, U4 count)
@@ -325,10 +420,12 @@ readcp(U2 count)
 		case CONSTANT_Long:
 			cp[i].info.long_info.high_bytes = readu(4);
 			cp[i].info.long_info.low_bytes = readu(4);
+			i++;
 			break;
 		case CONSTANT_Double:
 			cp[i].info.double_info.high_bytes = readu(4);
 			cp[i].info.double_info.low_bytes = readu(4);
+			i++;
 			break;
 		case CONSTANT_Class:
 			cp[i].info.class_info.name_index = readu(2);
@@ -462,6 +559,7 @@ readcode(U4 count)
 	code = fmalloc(count);
 	for (i = 0; i < count; i++)
 		code[i] = readu(1);
+	checkcode(code, count);
 	popfreestack();
 	return code;
 }
@@ -515,7 +613,7 @@ readclasses(ClassFile *class, U2 count)
 	for (i = 0; i < count; i++) {
 		p[i].inner_class_info_index = readindex(0, class, CONSTANT_Class);
 		p[i].outer_class_info_index = readindex(1, class, CONSTANT_Class);
-		p[i].inner_name_index = readindex(0, class, CONSTANT_Utf8);
+		p[i].inner_name_index = readindex(1, class, CONSTANT_Utf8);
 		p[i].inner_class_access_flags = readu(2);
 	}
 	popfreestack();
