@@ -389,7 +389,7 @@ static void
 printconstant(ClassFile *class, Field *field)
 {
 	U2 index, i;
-	char *s, buf[3];
+	char *s;
 
 	if (!(field->access_flags & ACC_STATIC))
 		return;
@@ -406,22 +406,11 @@ printconstant(ClassFile *class, Field *field)
 	printf("    ConstantValue: ");
 	switch (*s) {
 	case 'B':
-		buf[0] = class->constant_pool[index].info.integer_info.bytes;
-		buf[1] = class->constant_pool[index].info.integer_info.bytes >> 8;
-		buf[2] = '\0';
-		printf("byte %s", buf);
-		break;
-	case 'Z':
-		printf("boolean %ld", (long)getint(class->constant_pool[index].info.integer_info.bytes));
-		break;
 	case 'C':
-		printf("char %ld", (long)getint(class->constant_pool[index].info.integer_info.bytes));
-		break;
+	case 'Z':
+	case 'S':
 	case 'I':
 		printf("int %ld", (long)getint(class->constant_pool[index].info.integer_info.bytes));
-		break;
-	case 'S':
-		printf("short %ld", (long)getint(class->constant_pool[index].info.integer_info.bytes));
 		break;
 	case 'J':
 		printf("long %lld", getlong(class->constant_pool[index].info.long_info.high_bytes,
@@ -696,6 +685,10 @@ main(int argc, char *argv[])
 			verbose = 1;
 			cflag = 1;
 			sflag = 1;
+		} else if (strcmp(*argv, "--") == 0) {
+			argc--;
+			argv++;
+			break;
 		} else {
 			usage();
 		}
