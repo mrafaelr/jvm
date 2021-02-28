@@ -20,7 +20,8 @@ typedef enum ConstantTag {
 	CONSTANT_NameAndType        = 12,
 	CONSTANT_MethodHandle       = 15,
 	CONSTANT_MethodType         = 16,
-	CONSTANT_InvokeDynamic      = 18
+	CONSTANT_InvokeDynamic      = 18,
+	CONSTANT_Constant           = 20        /* used to tag integers, longs, doubles, floats and strings */
 } ConstantTag;
 
 typedef enum FlagType {

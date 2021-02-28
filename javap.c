@@ -389,7 +389,6 @@ static void
 printconstant(ClassFile *class, Field *field)
 {
 	U2 index, i;
-	char *s;
 
 	if (!(field->access_flags & ACC_STATIC))
 		return;
@@ -402,26 +401,24 @@ printconstant(ClassFile *class, Field *field)
 	}
 	if (index == 0)
 		return;
-	s = getutf8(class, field->descriptor_index);
 	printf("    ConstantValue: ");
-	switch (*s) {
-	case 'B':
-	case 'C':
-	case 'Z':
-	case 'S':
-	case 'I':
+	switch (class->constant_pool[index].tag) {
+	case CONSTANT_Integer:
 		printf("int %ld", (long)getint(class->constant_pool[index].info.integer_info.bytes));
 		break;
-	case 'J':
+	case CONSTANT_Long:
 		printf("long %lld", getlong(class->constant_pool[index].info.long_info.high_bytes,
 		                            class->constant_pool[index].info.long_info.low_bytes));
 		break;
-	case 'F':
+	case CONSTANT_Float:
 		printf("float %gd", getfloat(class->constant_pool[index].info.float_info.bytes));
 		break;
-	case 'D':
+	case CONSTANT_Double:
 		printf("double %gd", getdouble(class->constant_pool[index].info.double_info.high_bytes,
 		                               class->constant_pool[index].info.double_info.low_bytes));
+		break;
+	case CONSTANT_String:
+		printf("String %s", getutf8(class, class->constant_pool[index].info.string_info.string_index));
 		break;
 	}
 	putchar('\n');

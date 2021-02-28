@@ -201,7 +201,13 @@ checkindex(CP *cp, U2 count, ConstantTag tag, U2 index)
 		errtag = ERR_INDEX;
 		longjmp(jmpenv, 1);
 	}
-	if (tag && cp[index].tag != tag) {
+	if (tag && ((tag == CONSTANT_Constant &&
+	            (cp[index].tag != CONSTANT_Integer &&
+	             cp[index].tag != CONSTANT_Float &&
+	             cp[index].tag != CONSTANT_Long &&
+	             cp[index].tag != CONSTANT_Double &&
+	             cp[index].tag != CONSTANT_String)) ||
+	            (tag != CONSTANT_Constant && cp[index].tag != tag))) {
 		errtag = ERR_CONSTANT;
 		longjmp(jmpenv, 1);
 	}
@@ -534,6 +540,7 @@ readcode(U4 count)
 error:
 	errtag = ERR_CODE;
 	longjmp(jmpenv, 1);
+	return NULL;    /* unreachable */
 }
 
 /* read indices to constant pool, return point to index array */
@@ -650,7 +657,7 @@ readattributes(ClassFile *class, U2 count)
 		p[i].tag = getattributetag(class->constant_pool[index].info.utf8_info.bytes);
 		switch (p[i].tag) {
 		case ConstantValue:
-			p[i].info.constantvalue.constantvalue_index = readindex(0, class, 0);
+			p[i].info.constantvalue.constantvalue_index = readindex(0, class, CONSTANT_Constant);
 			break;
 		case Code:
 			p[i].info.code.max_stack = readu(2);
