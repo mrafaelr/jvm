@@ -225,97 +225,6 @@ checkdescriptor(CP *cp, U2 count, U2 index)
 	}
 }
 
-/* check if code follows the JVM code constraints */
-static void
-checkcode(U1 *code, U4 count)
-{
-	int32_t j, npairs, high, low;
-	U1 opcode;
-	U4 i;
-	U4 a, b, c, d;
-
-	for (i = 0; i < count; i++) {
-		opcode = code[i];
-		if (opcode >= CodeLast)
-			goto error;
-		switch (instrtab[code[i]].noperands) {
-		case OP_WIDE:
-			if (++i >= count)
-				goto error;
-			switch (code[i]) {
-			case ILOAD:
-			case FLOAD:
-			case ALOAD:
-			case LLOAD:
-			case DLOAD:
-			case ISTORE:
-			case FSTORE:
-			case ASTORE:
-			case LSTORE:
-			case DSTORE:
-			case RET:
-				i += 2;
-				break;
-			case IINC:
-				i += 4;
-				break;
-			default:
-				goto error;
-				break;
-			}
-		case OP_LOOKUPSWITCH:
-			i++;
-			while (i % 4)
-				i++;
-			i += 4;
-			if (i + 4 > count)
-				goto error;
-			a = code[i++];
-			b = code[i++];
-			c = code[i++];
-			d = code[i];
-			npairs = (a << 24) | (b << 16) | (c << 8) | d;
-			if (npairs < 0)
-				goto error;
-			i += 8 * npairs;
-			i--;
-			break;
-		case OP_TABLESWITCH:
-			i++;
-			while (i % 4)
-				i++;
-			i += 4;
-			a = code[i++];
-			b = code[i++];
-			c = code[i++];
-			d = code[i++];
-			low = (a << 24) | (b << 16) | (c << 8) | d;
-			a = code[i++];
-			b = code[i++];
-			c = code[i++];
-			d = code[i];
-			high = (a << 24) | (b << 16) | (c << 8) | d;
-			if (low > high)
-				goto error;
-			for (j = 0; j < high - low + 1; j++)
-				i += 4;
-			i--;
-			break;
-		default:
-			for (j = 0; i < count && j < instrtab[opcode].noperands; j++)
-				i++;
-			break;
-		}
-	}
-	if (i != count)
-		goto error;
-	return;
-error:
-	printf("%x\n", code[i]);
-	errtag = ERR_CODE;
-	longjmp(jmpenv, 1);
-}
-
 /* read count bytes into buf; longjmp to class_read on error */
 static void
 read(void *buf, U4 count)
@@ -551,17 +460,80 @@ readinterfaces(U2 count)
 static U1 *
 readcode(U4 count)
 {
+	int32_t j, npairs, high, low;
 	U1 *code;
 	U4 i;
 
 	if (count == 0)
 		return NULL;
 	code = fmalloc(count);
-	for (i = 0; i < count; i++)
+	for (i = 0; i < count; i++) {
 		code[i] = readu(1);
-	checkcode(code, count);
+		if (code[i] >= CodeLast)
+			goto error;
+		switch (instrtab[code[i]].noperands) {
+		case OP_WIDE:
+			code[++i] = readu(1);
+			switch (code[i]) {
+			case IINC:
+				code[++i] = readu(1);
+				code[++i] = readu(1);
+				/* FALLTHROUGH */
+			case ILOAD:
+			case FLOAD:
+			case ALOAD:
+			case LLOAD:
+			case DLOAD:
+			case ISTORE:
+			case FSTORE:
+			case ASTORE:
+			case LSTORE:
+			case DSTORE:
+			case RET:
+				code[++i] = readu(1);
+				code[++i] = readu(1);
+				break;
+			default:
+				goto error;
+				break;
+			}
+			break;
+		case OP_LOOKUPSWITCH:
+			while ((3 - (i % 4)) > 0)
+				code[++i] = readu(1);
+			for (j = 0; j < 8; j++)
+				code[++i] = readu(1);
+			npairs = (code[i-3] << 24) | (code[i-2] << 16) | (code[i-1] << 8) | code[i];
+			if (npairs < 0)
+				goto error;
+			for (j = 8 * npairs; j > 0; j--)
+				code[++i] = readu(1);
+			break;
+		case OP_TABLESWITCH:
+			while ((3 - (i % 4)) > 0)
+				code[++i] = readu(1);
+			for (j = 0; j < 12; j++)
+				code[++i] = readu(1);
+			low = (code[i-7] << 24) | (code[i-6] << 16) | (code[i-5] << 8) | code[i-4];
+			high = (code[i-3] << 24) | (code[i-2] << 16) | (code[i-1] << 8) | code[i];
+			if (low > high)
+				goto error;
+			for (j = high - low + 1; j > 0; j--)
+				code[++i] = readu(1);
+			break;
+		default:
+			for (j = instrtab[code[i]].noperands; j > 0; j--)
+				code[++i] = readu(1);
+			break;
+		}
+	}
+	if (i != count)
+		goto error;
 	popfreestack();
 	return code;
+error:
+	errtag = ERR_CODE;
+	longjmp(jmpenv, 1);
 }
 
 /* read indices to constant pool, return point to index array */
