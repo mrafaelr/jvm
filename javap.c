@@ -36,7 +36,7 @@ static int verbose = 0;
 static void
 usage(void)
 {
-	(void)fprintf(stderr, "usage: javap [-c|-p|-verbose] classfile...\n");
+	(void)fprintf(stderr, "usage: javap [-clpsv] classfile...\n");
 	exit(EXIT_FAILURE);
 }
 
