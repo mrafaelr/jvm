@@ -27,6 +27,7 @@ static char *cptags[] = {
 
 /* flags */
 static int cflag = 0;
+static int lflag = 0;
 static int pflag = 0;
 static int sflag = 0;
 static int verbose = 0;
@@ -453,40 +454,57 @@ printfield(ClassFile *class, Field *field)
 		printf("    ");
 		printflags(field->access_flags, TYPE_FIELD);
 		printconstant(class, field);
+	}
+	if (lflag || cflag) {
 		putchar('\n');
 	}
 }
 
 /* print line numbers */
 static void
-printlinenumbers(LineNumber *ln, U2 count)
+printlinenumbers(Code_attribute *codeattr)
 {
-	U2 i;
+	LineNumber *ln;
+	U2 count, i;
 
-	printf("      LineNumberTable:\n");
-	for (i = 0; i < count; i++) {
-		printf("        line %u: %u\n", ln[i].line_number, ln[i].start_pc);
+	for (i = 0; i < codeattr->attributes_count; i++) {
+		if (codeattr->attributes[i].tag == LineNumberTable) {
+			printf("      LineNumberTable:\n");
+			count = codeattr->attributes[i].info.linenumbertable.line_number_table_length;
+			ln = codeattr->attributes[i].info.linenumbertable.line_number_table;
+			for (i = 0; i < count; i++) {
+				printf("        line %u: %u\n", ln[i].line_number, ln[i].start_pc);
+			}
+			break;
+		}
 	}
 }
 
 /* print local variables */
 static void
-printlocalvars(ClassFile *class, LocalVariable *lv, U2 count)
+printlocalvars(ClassFile *class, Code_attribute *codeattr)
 {
-	U2 i;
+	LocalVariable *lv;
+	U2 count, i;
 
-	printf("      LocalVariableTable:\n");
-	printf("        Start  Length  Slot  Name   Signature\n");
-	for (i = 0; i < count; i++) {
-		printf("      %7u %7u %5u %5s   %s\n", lv[i].start_pc, lv[i].length, lv[i].index,
-		                                       getutf8(class, lv[i].name_index),
-		                                       getutf8(class, lv[i].descriptor_index));
+	for (i = 0; i < codeattr->attributes_count; i++) {
+		if (codeattr->attributes[i].tag == LocalVariableTable) {
+			printf("      LocalVariableTable:\n");
+			printf("        Start  Length  Slot  Name   Signature\n");
+			count = codeattr->attributes[i].info.localvariabletable.local_variable_table_length;
+			lv = codeattr->attributes[i].info.localvariabletable.local_variable_table;
+			for (i = 0; i < count; i++) {
+				printf("      %7u %7u %5u %5s   %s\n", lv[i].start_pc, lv[i].length, lv[i].index,
+				       getutf8(class, lv[i].name_index), getutf8(class, lv[i].descriptor_index));
+			}
+			break;
+		}
 	}
 }
 
 /* print code of method */
 static void
-printcode(ClassFile *class, Code_attribute *codeattr, U2 nargs)
+printcode(Code_attribute *codeattr, U2 nargs)
 {
 	int32_t j, npairs, high, low;
 	U1 *code;
@@ -564,21 +582,6 @@ printcode(ClassFile *class, Code_attribute *codeattr, U2 nargs)
 			break;
 		}
 	}
-	if (verbose) {
-		for (i = 0; i < codeattr->attributes_count; i++) {
-			if (codeattr->attributes[i].tag == LineNumberTable) {
-				printlinenumbers(codeattr->attributes[i].info.linenumbertable.line_number_table,
-				                 codeattr->attributes[i].info.linenumbertable.line_number_table_length);
-			}
-		}
-		for (i = 0; i < codeattr->attributes_count; i++) {
-			if (codeattr->attributes[i].tag == LocalVariableTable) {
-				printlocalvars(class,
-				               codeattr->attributes[i].info.localvariabletable.local_variable_table,
-				               codeattr->attributes[i].info.localvariabletable.local_variable_table_length);
-			}
-		}
-	}
 }
 
 /* print method information */
@@ -625,10 +628,16 @@ printmethod(ClassFile *class, Method *method)
 		printf("    ");
 		printflags(method->access_flags, TYPE_METHOD);
 	}
-	if (cflag) {
+	if (lflag || cflag) {
 		for (i = 0; i < method->attributes_count; i++) {
 			if (method->attributes[i].tag == Code) {
-				printcode(class, &method->attributes[i].info.code, nargs);
+				if (cflag) {
+					printcode(&method->attributes[i].info.code, nargs);
+				}
+				if (lflag) {
+					printlinenumbers(&method->attributes[i].info.code);
+					printlocalvars(class, &method->attributes[i].info.code);
+				}
 				break;
 			}
 		}
@@ -656,7 +665,7 @@ javap(ClassFile *class)
 		printfield(class, &class->fields[i]);
 	}
 	for (i = 0; i < class->methods_count; i++) {
-		if (i && (sflag || cflag))
+		if (i && (lflag || sflag || cflag))
 			putchar('\n');
 		printmethod(class, &class->methods[i]);
 	}
@@ -669,27 +678,36 @@ main(int argc, char *argv[])
 {
 	ClassFile *class;
 	int exitval = EXIT_SUCCESS;
+	int ch;
 
 	setprogname(argv[0]);
-	while (--argc > 0 && (*++argv)[0] == '-') {
-		if (strcmp(*argv, "-c") == 0) {
+	while ((ch = getopt(argc, argv, "clpsv")) != -1) {
+		switch (ch) {
+		case 'c':
 			cflag = 1;
-		} else if (strcmp(*argv, "-p") == 0) {
+			break;
+		case 'l':
+			lflag = 1;
+			break;
+		case 'p':
 			pflag = 1;
-		} else if (strcmp(*argv, "-s") == 0) {
+			break;
+		case 's':
 			sflag = 1;
-		} else if (strcmp(*argv, "-verbose") == 0) {
+			break;
+		case 'v':
 			verbose = 1;
 			cflag = 1;
+			lflag = 1;
 			sflag = 1;
-		} else if (strcmp(*argv, "--") == 0) {
-			argc--;
-			argv++;
 			break;
-		} else {
+		default:
 			usage();
+			break;
 		}
 	}
+	argc -= optind;
+	argv += optind;
 	if (argc == 0)
 		usage();
 	while (argc--) {

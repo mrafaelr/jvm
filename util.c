@@ -7,6 +7,9 @@
 
 static char *progname;
 
+int optind = 1;
+int optopt;
+
 /* set program name */
 void
 setprogname(char *s)
@@ -26,6 +29,35 @@ int
 min(int x, int y)
 {
 	return x < y ? x : y;
+}
+
+/* get options, we do not support ':' on options */
+int
+getopt(int argc, char * const *argv, const char *options)
+{
+	static int optpos = 1;
+
+	if (!optind) {                  /* reset */
+		optind = 1;
+		optpos = 1;
+	}
+	if (optind >= argc || !argv[optind] || argv[optind][0] != '-') {
+		return -1;
+	}
+	if (strcmp(argv[optind], "--") == 0) {
+		optind++;
+		return -1;
+	}
+	optopt = argv[optind][optpos];
+	if (strchr(options, argv[optind][optpos]) == NULL) {
+		warnx("unknown option -- %c", argv[optind][optpos]);
+		return '?';
+	}
+	if (!argv[optind][++optpos]) {
+		optind++;
+		optpos = 1;
+	}
+	return optopt;
 }
 
 /* get int32_t from uint32_t */
