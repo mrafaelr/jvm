@@ -1,8 +1,6 @@
 #define LEN(x) (sizeof (x) / sizeof *(x))
 
 void setprogname(char *s);
-int max(int x, int y);
-int min(int x, int y);
 int getopt(int argc, char * const *argv, const char *options);
 int32_t getint(uint32_t bytes);
 float getfloat(uint32_t bytes);

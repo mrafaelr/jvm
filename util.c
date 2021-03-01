@@ -17,20 +17,6 @@ setprogname(char *s)
 	progname = s;
 }
 
-/* get maximum */
-int
-max(int x, int y)
-{
-	return x > y ? x : y;
-}
-
-/* get minimum */
-int
-min(int x, int y)
-{
-	return x < y ? x : y;
-}
-
 /* get options, we do not support ':' on options */
 int
 getopt(int argc, char * const *argv, const char *options)
