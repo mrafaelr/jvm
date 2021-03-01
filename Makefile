@@ -8,14 +8,14 @@ LINTFLAGS = -nullret -predboolint
 
 all: javap
 
-javap: javap.o util.o class.o file.o instr.o
-	${CC} -o $@ javap.o util.o class.o file.o instr.o ${LDFLAGS}
+javap: javap.o util.o class.o file.o
+	${CC} -o $@ javap.o util.o class.o file.o ${LDFLAGS}
 
 javap.o: class.h file.h
 file.o:  class.h util.h
 
 lint:
-	-${LINT} ${CPPFLAGS} ${LINTFLAGS} javap.c util.c class.c file.c instr.c
+	-${LINT} ${CPPFLAGS} ${LINTFLAGS} javap.c util.c class.c file.c
 
 .c.o:
 	${CC} ${CFLAGS} -c $<

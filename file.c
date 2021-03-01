@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "class.h"
-#include "instr.h"
 #include "util.h"
 
 #define MAGIC           0xCAFEBABE
@@ -477,7 +476,7 @@ readcode(U4 count)
 		code[i] = readu(1);
 		if (code[i] >= CodeLast)
 			goto error;
-		switch (instrtab[code[i]].noperands) {
+		switch (noperands[code[i]]) {
 		case OP_WIDE:
 			code[++i] = readu(1);
 			switch (code[i]) {
@@ -528,7 +527,7 @@ readcode(U4 count)
 				code[++i] = readu(1);
 			break;
 		default:
-			for (j = instrtab[code[i]].noperands; j > 0; j--)
+			for (j = noperands[code[i]]; j > 0; j--)
 				code[++i] = readu(1);
 			break;
 		}
