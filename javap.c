@@ -6,6 +6,7 @@
 #include "file.h"
 #include "util.h"
 
+/* names */
 static char *cptags[] = {
 	[CONSTANT_Untagged]           = "",
 	[CONSTANT_Utf8]               = "Utf8",
@@ -665,43 +666,35 @@ printfield(ClassFile *class, Field *field)
 
 /* print line numbers */
 static void
-printlinenumbers(Code_attribute *codeattr)
+printlinenumbers(LineNumberTable_attribute *lnattr)
 {
 	LineNumber *ln;
 	U2 count, i;
 
-	for (i = 0; i < codeattr->attributes_count; i++) {
-		if (codeattr->attributes[i].tag == LineNumberTable) {
-			printf("      LineNumberTable:\n");
-			count = codeattr->attributes[i].info.linenumbertable.line_number_table_length;
-			ln = codeattr->attributes[i].info.linenumbertable.line_number_table;
-			for (i = 0; i < count; i++) {
-				printf("        line %u: %u\n", ln[i].line_number, ln[i].start_pc);
-			}
-			break;
-		}
+	printf("      LineNumberTable:\n");
+	count = lnattr->line_number_table_length;
+	ln = lnattr->line_number_table;
+	for (i = 0; i < count; i++) {
+		printf("        line %u: %u\n", ln[i].line_number, ln[i].start_pc);
 	}
 }
 
 /* print local variables */
 static void
-printlocalvars(ClassFile *class, Code_attribute *codeattr)
+printlocalvars(ClassFile *class, LocalVariableTable_attribute *lvattr)
 {
 	LocalVariable *lv;
 	U2 count, i;
 
-	for (i = 0; i < codeattr->attributes_count; i++) {
-		if (codeattr->attributes[i].tag == LocalVariableTable) {
-			printf("      LocalVariableTable:\n");
-			printf("        Start  Length  Slot  Name   Signature\n");
-			count = codeattr->attributes[i].info.localvariabletable.local_variable_table_length;
-			lv = codeattr->attributes[i].info.localvariabletable.local_variable_table;
-			for (i = 0; i < count; i++) {
-				printf("      %7u %7u %5u %5s   %s\n", lv[i].start_pc, lv[i].length, lv[i].index,
-				       getutf8(class, lv[i].name_index), getutf8(class, lv[i].descriptor_index));
-			}
-			break;
-		}
+	count = lvattr->local_variable_table_length;
+	lv = lvattr->local_variable_table;
+	if (count == 0)
+		return;
+	printf("      LocalVariableTable:\n");
+	printf("        Start  Length  Slot  Name   Signature\n");
+	for (i = 0; i < count; i++) {
+		printf("      %7u %7u %5u %5s   %s\n", lv[i].start_pc, lv[i].length, lv[i].index,
+		       getutf8(class, lv[i].name_index), getutf8(class, lv[i].descriptor_index));
 	}
 }
 
@@ -793,7 +786,10 @@ printmethod(ClassFile *class, Method *method)
 {
 	char *name;
 	int init = 0;
-	U2 nargs, i;
+	U2 nargs;
+	Attribute *cattr;       /* Code_attribute */
+	Attribute *lnattr;      /* LineNumberTable_attribute */
+	Attribute *lvattr;      /* LocalVariableTable_attribute */
 
 	if (!pflag && method->access_flags & ACC_PRIVATE)
 		return;
@@ -831,20 +827,19 @@ printmethod(ClassFile *class, Method *method)
 		printf("    ");
 		printflags(method->access_flags, TYPE_METHOD);
 	}
-	if (lflag || cflag) {
-		for (i = 0; i < method->attributes_count; i++) {
-			if (method->attributes[i].tag == Code) {
-				if (cflag) {
-					printcode(&method->attributes[i].info.code, nargs);
-				}
-				if (lflag) {
-					printlinenumbers(&method->attributes[i].info.code);
-					printlocalvars(class, &method->attributes[i].info.code);
-				}
-				break;
-			}
+	cattr = getattr(method->attributes, method->attributes_count, Code);
+	if (cattr != NULL) {
+		lnattr = getattr(cattr->info.code.attributes, cattr->info.code.attributes_count, LineNumberTable);
+		lvattr = getattr(cattr->info.code.attributes, cattr->info.code.attributes_count, LocalVariableTable);
+		if (cflag) {
+			printcode(&cattr->info.code, nargs);
 		}
-
+		if (lflag && lnattr != NULL) {
+			printlinenumbers(&lnattr->info.linenumbertable);
+		}
+		if (lflag && lvattr != NULL) {
+			printlocalvars(class, &lvattr->info.localvariabletable);
+		}
 	}
 }
 
