@@ -812,7 +812,6 @@ ClassFile *
 file_read(char *filename)
 {
 	ClassFile *class = NULL;
-	U4 u;
 
 	if ((filep = fopen(filename, "rb")) == NULL) {
 		saverrno = errno;
@@ -821,7 +820,7 @@ file_read(char *filename)
 	}
 	if (setjmp(jmpenv))
 		goto error;
-	if ((u = readu(4)) != MAGIC) {
+	if (readu(4) != MAGIC) {
 		errtag = ERR_MAGIC;
 		goto error;
 	}
