@@ -2,12 +2,19 @@
 
 This is the implementation of a simple Java Virtual Machine.  This is
 the final project of the first semester of 2021 of the Basic Software
-course of the Computer Science department of the University of Brasilia
-by the professor Marcelo Ladeira.
+course of the Computer Science department of the University of Brasilia.
 
 The following tools are implemented:
 • javap(1): Disassembles one or more class files.
-• java(1):  Launches a Java application.
+• java(1):  Launches a Java application (TODO).
+
+
+§ Files
+
+• util.[ch]:    miscellaneous routines
+• class.[ch]:   .class file structure definition
+• file.[ch]:    .class file reader
+• javap.c:      .class file disassembler
 
 
 § See Also
