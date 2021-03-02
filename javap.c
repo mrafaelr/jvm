@@ -458,12 +458,10 @@ static void
 printsource(ClassFile *class)
 {
 	Attribute *attr;
-	U2 i;
 
 	if ((attr = getattr(class->attributes, class->attributes_count, SourceFile)) == NULL)
 		return;
-	i = attr->info.sourcefile.sourcefile_index;
-	printf("Compiled from \"%s\"\n", getutf8(class, i));
+	printf("Compiled from \"%s\"\n", getutf8(class, attr->info.sourcefile.sourcefile_index));
 }
 
 /* print class header */
