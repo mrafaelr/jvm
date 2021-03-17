@@ -7,6 +7,7 @@
 #include <string.h>
 #include "class.h"
 #include "util.h"
+#include "file.h"
 
 #define MAGIC           0xCAFEBABE
 
@@ -15,45 +16,13 @@ struct FreeStack {
 	void *p;
 };
 
-enum ErrorTag {
-	ERR_NONE = 0,
-	ERR_OPEN,
-	ERR_READ,
-	ERR_ALLOC,
-	ERR_CODE,
-	ERR_CONSTANT,
-	ERR_DESCRIPTOR,
-	ERR_EOF,
-	ERR_INDEX,
-	ERR_KIND,
-	ERR_MAGIC,
-	ERR_TAG,
-};
-
 /* jmp variables */
 static jmp_buf jmpenv;
 static struct FreeStack *freep = NULL;
 
-/* file variables */
-static FILE *filep;
-
 /* error variables */
 static int saverrno;
-static enum ErrorTag errtag = ERR_NONE;
-static char *errstr[] = {
-	[ERR_NONE] = NULL,
-	[ERR_OPEN] = NULL,
-	[ERR_READ] = NULL,
-	[ERR_ALLOC] = "could not allocate memory",
-	[ERR_CODE] = "code does not follow jvm code constraints",
-	[ERR_CONSTANT] = "reference to entry of wrong type on constant pool",
-	[ERR_DESCRIPTOR] = "invalid descriptor string",
-	[ERR_EOF] = "unexpected end of file",
-	[ERR_INDEX] = "index to constant pool out of bounds",
-	[ERR_KIND] = "invalid method handle reference kind",
-	[ERR_MAGIC] = "invalid magic number",
-	[ERR_TAG] = "unknown constant pool tag",
-};
+static int errtag = ERR_NONE;
 
 /* add pointer to stack of pointers to be freed when an error occurs */
 static void
@@ -232,10 +201,10 @@ checkdescriptor(CP *cp, U2 count, U2 index)
 
 /* read count bytes into buf; longjmp to class_read on error */
 static void
-read(void *buf, U4 count)
+readb(FILE *fp, void *buf, U4 count)
 {
-	if (fread(buf, 1, count, filep) != count) {
-		if (feof(filep)) {
+	if (fread(buf, 1, count, fp) != count) {
+		if (feof(fp)) {
 			errtag = ERR_EOF;
 		} else {
 			saverrno = errno;
@@ -247,12 +216,12 @@ read(void *buf, U4 count)
 
 /* read unsigned integer U4 and return it */
 static U4
-readu(U2 count)
+readu(FILE *fp, U2 count)
 {
 	U4 u = 0;
 	U1 b[4];
 
-	read(b, count);
+	readb(fp, b, count);
 	switch (count) {
 	case 4:
 		u = (b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3];
@@ -270,12 +239,12 @@ readu(U2 count)
 
 /* read string of length count into buf; insert a nul at the end of it */
 static char *
-reads(U2 count)
+reads(FILE *fp, U2 count)
 {
 	char *s;
 
 	s = fmalloc(count + 1);
-	read(s, count);
+	readb(fp, s, count);
 	s[count] = '\0';
 	popfreestack();
 	return s;
@@ -283,12 +252,12 @@ reads(U2 count)
 
 /* read index to constant pool and check whether it is a valid index to a given tag */
 static U2
-readindex(int canbezero, ClassFile *class, ConstantTag tag)
+readindex(FILE *fp, int canbezero, ClassFile *class, ConstantTag tag)
 {
 	U2 u;
 	U1 b[2];
 
-	read(b, 2);
+	readb(fp, b, 2);
 	u = (b[0] << 8) | b[1];
 	if (!canbezero || u)
 		checkindex(class->constant_pool, class->constant_pool_count, tag, u);
@@ -297,12 +266,12 @@ readindex(int canbezero, ClassFile *class, ConstantTag tag)
 
 /* read descriptor index to constant pool and check whether it is a valid */
 static U2
-readdescriptor(ClassFile *class)
+readdescriptor(FILE *fp, ClassFile *class)
 {
 	U2 u;
 	U1 b[2];
 
-	read(b, 2);
+	readb(fp, b, 2);
 	u = (b[0] << 8) | b[1];
 	checkdescriptor(class->constant_pool, class->constant_pool_count, u);
 	return u;
@@ -310,7 +279,7 @@ readdescriptor(ClassFile *class)
 
 /* read constant pool, return pointer to constant pool array */
 static CP *
-readcp(U2 count)
+readcp(FILE *fp, U2 count)
 {
 	CP *cp;
 	U2 i;
@@ -319,60 +288,60 @@ readcp(U2 count)
 		return NULL;
 	cp = fcalloc(count, sizeof *cp);
 	for (i = 1; i < count; i++) {
-		cp[i].tag = readu(1);
+		cp[i].tag = readu(fp, 1);
 		switch (cp[i].tag) {
 		case CONSTANT_Utf8:
-			cp[i].info.utf8_info.length = readu(2);
-			cp[i].info.utf8_info.bytes = reads(cp[i].info.utf8_info.length);
+			cp[i].info.utf8_info.length = readu(fp, 2);
+			cp[i].info.utf8_info.bytes = reads(fp, cp[i].info.utf8_info.length);
 			break;
 		case CONSTANT_Integer:
-			cp[i].info.integer_info.bytes = readu(4);
+			cp[i].info.integer_info.bytes = readu(fp, 4);
 			break;
 		case CONSTANT_Float:
-			cp[i].info.float_info.bytes = readu(4);
+			cp[i].info.float_info.bytes = readu(fp, 4);
 			break;
 		case CONSTANT_Long:
-			cp[i].info.long_info.high_bytes = readu(4);
-			cp[i].info.long_info.low_bytes = readu(4);
+			cp[i].info.long_info.high_bytes = readu(fp, 4);
+			cp[i].info.long_info.low_bytes = readu(fp, 4);
 			i++;
 			break;
 		case CONSTANT_Double:
-			cp[i].info.double_info.high_bytes = readu(4);
-			cp[i].info.double_info.low_bytes = readu(4);
+			cp[i].info.double_info.high_bytes = readu(fp, 4);
+			cp[i].info.double_info.low_bytes = readu(fp, 4);
 			i++;
 			break;
 		case CONSTANT_Class:
-			cp[i].info.class_info.name_index = readu(2);
+			cp[i].info.class_info.name_index = readu(fp, 2);
 			break;
 		case CONSTANT_String:
-			cp[i].info.string_info.string_index = readu(2);
+			cp[i].info.string_info.string_index = readu(fp, 2);
 			break;
 		case CONSTANT_Fieldref:
-			cp[i].info.fieldref_info.class_index = readu(2);
-			cp[i].info.fieldref_info.name_and_type_index = readu(2);
+			cp[i].info.fieldref_info.class_index = readu(fp, 2);
+			cp[i].info.fieldref_info.name_and_type_index = readu(fp, 2);
 			break;
 		case CONSTANT_Methodref:
-			cp[i].info.methodref_info.class_index = readu(2);
-			cp[i].info.methodref_info.name_and_type_index = readu(2);
+			cp[i].info.methodref_info.class_index = readu(fp, 2);
+			cp[i].info.methodref_info.name_and_type_index = readu(fp, 2);
 			break;
 		case CONSTANT_InterfaceMethodref:
-			cp[i].info.interfacemethodref_info.class_index = readu(2);
-			cp[i].info.interfacemethodref_info.name_and_type_index = readu(2);
+			cp[i].info.interfacemethodref_info.class_index = readu(fp, 2);
+			cp[i].info.interfacemethodref_info.name_and_type_index = readu(fp, 2);
 			break;
 		case CONSTANT_NameAndType:
-			cp[i].info.nameandtype_info.name_index = readu(2);
-			cp[i].info.nameandtype_info.descriptor_index = readu(2);
+			cp[i].info.nameandtype_info.name_index = readu(fp, 2);
+			cp[i].info.nameandtype_info.descriptor_index = readu(fp, 2);
 			break;
 		case CONSTANT_MethodHandle:
-			cp[i].info.methodhandle_info.reference_kind = readu(1);
-			cp[i].info.methodhandle_info.reference_index = readu(2);
+			cp[i].info.methodhandle_info.reference_kind = readu(fp, 1);
+			cp[i].info.methodhandle_info.reference_index = readu(fp, 2);
 			break;
 		case CONSTANT_MethodType:
-			cp[i].info.methodtype_info.descriptor_index = readu(2);
+			cp[i].info.methodtype_info.descriptor_index = readu(fp, 2);
 			break;
 		case CONSTANT_InvokeDynamic:
-			cp[i].info.invokedynamic_info.bootstrap_method_attr_index = readu(2);
-			cp[i].info.invokedynamic_info.name_and_type_index = readu(2);
+			cp[i].info.invokedynamic_info.bootstrap_method_attr_index = readu(fp, 2);
+			cp[i].info.invokedynamic_info.name_and_type_index = readu(fp, 2);
 			break;
 		default:
 			errtag = ERR_TAG;
@@ -447,7 +416,7 @@ readcp(U2 count)
 
 /* read interface indices, return pointer to interfaces array */
 static U2 *
-readinterfaces(U2 count)
+readinterfaces(FILE *fp, U2 count)
 {
 	U2 *p;
 	U2 i;
@@ -456,14 +425,14 @@ readinterfaces(U2 count)
 		return NULL;
 	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++)
-		p[i] = readu(2);
+		p[i] = readu(fp, 2);
 	popfreestack();
 	return p;
 }
 
 /* read code instructions, return point to instruction array */
 static U1 *
-readcode(U4 count)
+readcode(FILE *fp, U4 count)
 {
 	int32_t j, npairs, high, low;
 	U1 *code;
@@ -473,16 +442,16 @@ readcode(U4 count)
 		return NULL;
 	code = fmalloc(count);
 	for (i = 0; i < count; i++) {
-		code[i] = readu(1);
+		code[i] = readu(fp, 1);
 		if (code[i] >= CodeLast)
 			goto error;
 		switch (noperands[code[i]]) {
 		case OP_WIDE:
-			code[++i] = readu(1);
+			code[++i] = readu(fp, 1);
 			switch (code[i]) {
 			case IINC:
-				code[++i] = readu(1);
-				code[++i] = readu(1);
+				code[++i] = readu(fp, 1);
+				code[++i] = readu(fp, 1);
 				/* FALLTHROUGH */
 			case ILOAD:
 			case FLOAD:
@@ -495,8 +464,8 @@ readcode(U4 count)
 			case LSTORE:
 			case DSTORE:
 			case RET:
-				code[++i] = readu(1);
-				code[++i] = readu(1);
+				code[++i] = readu(fp, 1);
+				code[++i] = readu(fp, 1);
 				break;
 			default:
 				goto error;
@@ -505,30 +474,30 @@ readcode(U4 count)
 			break;
 		case OP_LOOKUPSWITCH:
 			while ((3 - (i % 4)) > 0)
-				code[++i] = readu(1);
+				code[++i] = readu(fp, 1);
 			for (j = 0; j < 8; j++)
-				code[++i] = readu(1);
+				code[++i] = readu(fp, 1);
 			npairs = (code[i-3] << 24) | (code[i-2] << 16) | (code[i-1] << 8) | code[i];
 			if (npairs < 0)
 				goto error;
 			for (j = 8 * npairs; j > 0; j--)
-				code[++i] = readu(1);
+				code[++i] = readu(fp, 1);
 			break;
 		case OP_TABLESWITCH:
 			while ((3 - (i % 4)) > 0)
-				code[++i] = readu(1);
+				code[++i] = readu(fp, 1);
 			for (j = 0; j < 12; j++)
-				code[++i] = readu(1);
+				code[++i] = readu(fp, 1);
 			low = (code[i-7] << 24) | (code[i-6] << 16) | (code[i-5] << 8) | code[i-4];
 			high = (code[i-3] << 24) | (code[i-2] << 16) | (code[i-1] << 8) | code[i];
 			if (low > high)
 				goto error;
 			for (j = high - low + 1; j > 0; j--)
-				code[++i] = readu(1);
+				code[++i] = readu(fp, 1);
 			break;
 		default:
 			for (j = noperands[code[i]]; j > 0; j--)
-				code[++i] = readu(1);
+				code[++i] = readu(fp, 1);
 			break;
 		}
 	}
@@ -544,7 +513,7 @@ error:
 
 /* read indices to constant pool, return point to index array */
 static U2 *
-readindices(U2 count)
+readindices(FILE *fp, U2 count)
 {
 	U2 *indices;
 	U2 i;
@@ -553,14 +522,14 @@ readindices(U2 count)
 		return NULL;
 	indices = fcalloc(count, sizeof *indices);
 	for (i = 0; i < count; i++)
-		indices[i] = readu(2);
+		indices[i] = readu(fp, 2);
 	popfreestack();
 	return indices;
 }
 
 /* read exception table, return point to exception array */
 static Exception *
-readexceptions(U2 count)
+readexceptions(FILE *fp, U2 count)
 {
 	Exception *p;
 	U2 i;
@@ -569,10 +538,10 @@ readexceptions(U2 count)
 		return NULL;
 	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++) {
-		p[i].start_pc = readu(2);
-		p[i].end_pc = readu(2);
-		p[i].handler_pc = readu(2);
-		p[i].catch_type = readu(2);
+		p[i].start_pc = readu(fp, 2);
+		p[i].end_pc = readu(fp, 2);
+		p[i].handler_pc = readu(fp, 2);
+		p[i].catch_type = readu(fp, 2);
 	}
 	popfreestack();
 	return p;
@@ -580,7 +549,7 @@ readexceptions(U2 count)
 
 /* read inner class table, return point to class array */
 static InnerClass *
-readclasses(ClassFile *class, U2 count)
+readclasses(FILE *fp, ClassFile *class, U2 count)
 {
 	InnerClass *p;
 	U2 i;
@@ -589,10 +558,10 @@ readclasses(ClassFile *class, U2 count)
 		return NULL;
 	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++) {
-		p[i].inner_class_info_index = readindex(0, class, CONSTANT_Class);
-		p[i].outer_class_info_index = readindex(1, class, CONSTANT_Class);
-		p[i].inner_name_index = readindex(1, class, CONSTANT_Utf8);
-		p[i].inner_class_access_flags = readu(2);
+		p[i].inner_class_info_index = readindex(fp, 0, class, CONSTANT_Class);
+		p[i].outer_class_info_index = readindex(fp, 1, class, CONSTANT_Class);
+		p[i].inner_name_index = readindex(fp, 1, class, CONSTANT_Utf8);
+		p[i].inner_class_access_flags = readu(fp, 2);
 	}
 	popfreestack();
 	return p;
@@ -600,7 +569,7 @@ readclasses(ClassFile *class, U2 count)
 
 /* read line number table, return point to LineNumber array */
 static LineNumber *
-readlinenumber(U2 count)
+readlinenumber(FILE *fp, U2 count)
 {
 	LineNumber *p;
 	U2 i;
@@ -609,8 +578,8 @@ readlinenumber(U2 count)
 		return NULL;
 	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++) {
-		p[i].start_pc = readu(2);
-		p[i].line_number = readu(2);
+		p[i].start_pc = readu(fp, 2);
+		p[i].line_number = readu(fp, 2);
 	}
 	popfreestack();
 	return p;
@@ -618,7 +587,7 @@ readlinenumber(U2 count)
 
 /* read local variable table, return point to LocalVariable array */
 static LocalVariable *
-readlocalvariable(ClassFile *class, U2 count)
+readlocalvariable(FILE *fp, ClassFile *class, U2 count)
 {
 	LocalVariable *p;
 	U2 i;
@@ -627,11 +596,11 @@ readlocalvariable(ClassFile *class, U2 count)
 		return NULL;
 	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++) {
-		p[i].start_pc = readu(2);
-		p[i].length = readu(2);
-		p[i].name_index = readindex(0, class, CONSTANT_Utf8);
-		p[i].descriptor_index = readdescriptor(class);
-		p[i].index = readu(2);
+		p[i].start_pc = readu(fp, 2);
+		p[i].length = readu(fp, 2);
+		p[i].name_index = readindex(fp, 0, class, CONSTANT_Utf8);
+		p[i].descriptor_index = readdescriptor(fp, class);
+		p[i].index = readu(fp, 2);
 	}
 	popfreestack();
 	return p;
@@ -639,7 +608,7 @@ readlocalvariable(ClassFile *class, U2 count)
 
 /* read attribute list, longjmp to class_read on error */
 static Attribute *
-readattributes(ClassFile *class, U2 count)
+readattributes(FILE *fp, ClassFile *class, U2 count)
 {
 	Attribute *p;
 	U4 length;
@@ -651,49 +620,49 @@ readattributes(ClassFile *class, U2 count)
 		return NULL;
 	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++) {
-		index = readindex(0, class, CONSTANT_Utf8);
-		length = readu(4);
+		index = readindex(fp, 0, class, CONSTANT_Utf8);
+		length = readu(fp, 4);
 		p[i].tag = getattributetag(class->constant_pool[index].info.utf8_info.bytes);
 		switch (p[i].tag) {
 		case ConstantValue:
-			p[i].info.constantvalue.constantvalue_index = readindex(0, class, CONSTANT_Constant);
+			p[i].info.constantvalue.constantvalue_index = readindex(fp, 0, class, CONSTANT_Constant);
 			break;
 		case Code:
-			p[i].info.code.max_stack = readu(2);
-			p[i].info.code.max_locals = readu(2);
-			p[i].info.code.code_length = readu(4);
-			p[i].info.code.code = readcode(p[i].info.code.code_length);
-			p[i].info.code.exception_table_length = readu(2);
-			p[i].info.code.exception_table = readexceptions(p[i].info.code.exception_table_length);
-			p[i].info.code.attributes_count = readu(2);
-			p[i].info.code.attributes = readattributes(class, p[i].info.code.attributes_count);
+			p[i].info.code.max_stack = readu(fp, 2);
+			p[i].info.code.max_locals = readu(fp, 2);
+			p[i].info.code.code_length = readu(fp, 4);
+			p[i].info.code.code = readcode(fp, p[i].info.code.code_length);
+			p[i].info.code.exception_table_length = readu(fp, 2);
+			p[i].info.code.exception_table = readexceptions(fp, p[i].info.code.exception_table_length);
+			p[i].info.code.attributes_count = readu(fp, 2);
+			p[i].info.code.attributes = readattributes(fp, class, p[i].info.code.attributes_count);
 			break;
 		case Deprecated:
 			break;
 		case Exceptions:
-			p[i].info.exceptions.number_of_exceptions = readu(2);
-			p[i].info.exceptions.exception_index_table = readindices(p[i].info.exceptions.number_of_exceptions);
+			p[i].info.exceptions.number_of_exceptions = readu(fp, 2);
+			p[i].info.exceptions.exception_index_table = readindices(fp, p[i].info.exceptions.number_of_exceptions);
 			break;
 		case InnerClasses:
-			p[i].info.innerclasses.number_of_classes = readu(2);
-			p[i].info.innerclasses.classes = readclasses(class, p[i].info.innerclasses.number_of_classes);
+			p[i].info.innerclasses.number_of_classes = readu(fp, 2);
+			p[i].info.innerclasses.classes = readclasses(fp, class, p[i].info.innerclasses.number_of_classes);
 			break;
 		case SourceFile:
-			p[i].info.sourcefile.sourcefile_index = readindex(0, class, CONSTANT_Utf8);
+			p[i].info.sourcefile.sourcefile_index = readindex(fp, 0, class, CONSTANT_Utf8);
 			break;
 		case Synthetic:
 			break;
 		case LineNumberTable:
-			p[i].info.linenumbertable.line_number_table_length = readu(2);
-			p[i].info.linenumbertable.line_number_table = readlinenumber(p[i].info.linenumbertable.line_number_table_length);
+			p[i].info.linenumbertable.line_number_table_length = readu(fp, 2);
+			p[i].info.linenumbertable.line_number_table = readlinenumber(fp, p[i].info.linenumbertable.line_number_table_length);
 			break;
 		case LocalVariableTable:
-			p[i].info.localvariabletable.local_variable_table_length = readu(2);
-			p[i].info.localvariabletable.local_variable_table = readlocalvariable(class, p[i].info.localvariabletable.local_variable_table_length);
+			p[i].info.localvariabletable.local_variable_table_length = readu(fp, 2);
+			p[i].info.localvariabletable.local_variable_table = readlocalvariable(fp, class, p[i].info.localvariabletable.local_variable_table_length);
 			break;
 		case UnknownAttribute:
 			while (length-- > 0)
-				read(&b, 1);
+				readb(fp, &b, 1);
 			break;
 		}
 	}
@@ -703,7 +672,7 @@ readattributes(ClassFile *class, U2 count)
 
 /* read fields, reaturn pointer to fields array */
 static Field *
-readfields(ClassFile *class, U2 count)
+readfields(FILE *fp, ClassFile *class, U2 count)
 {
 	Field *p;
 	U2 i;
@@ -712,11 +681,11 @@ readfields(ClassFile *class, U2 count)
 		return NULL;
 	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++) {
-		p[i].access_flags = readu(2);
-		p[i].name_index = readindex(0, class, CONSTANT_Utf8);
-		p[i].descriptor_index = readdescriptor(class);
-		p[i].attributes_count = readu(2);
-		p[i].attributes = readattributes(class, p[i].attributes_count);
+		p[i].access_flags = readu(fp, 2);
+		p[i].name_index = readindex(fp, 0, class, CONSTANT_Utf8);
+		p[i].descriptor_index = readdescriptor(fp, class);
+		p[i].attributes_count = readu(fp, 2);
+		p[i].attributes = readattributes(fp, class, p[i].attributes_count);
 	}
 	popfreestack();
 	return p;
@@ -724,7 +693,7 @@ readfields(ClassFile *class, U2 count)
 
 /* read methods, reaturn pointer to methods array */
 static Method *
-readmethods(ClassFile *class, U2 count)
+readmethods(FILE *fp, ClassFile *class, U2 count)
 {
 	Method *p;
 	U2 i;
@@ -733,11 +702,11 @@ readmethods(ClassFile *class, U2 count)
 		return NULL;
 	p = fcalloc(count, sizeof *p);
 	for (i = 0; i < count; i++) {
-		p[i].access_flags = readu(2);
-		p[i].name_index = readindex(0, class, CONSTANT_Utf8);
-		p[i].descriptor_index = readdescriptor(class);
-		p[i].attributes_count = readu(2);
-		p[i].attributes = readattributes(class, p[i].attributes_count);
+		p[i].access_flags = readu(fp, 2);
+		p[i].name_index = readindex(fp, 0, class, CONSTANT_Utf8);
+		p[i].descriptor_index = readdescriptor(fp, class);
+		p[i].attributes_count = readu(fp, 2);
+		p[i].attributes = readattributes(fp, class, p[i].attributes_count);
 	}
 	popfreestack();
 	return p;
@@ -804,57 +773,36 @@ file_free(ClassFile *class)
 			attributefree(class->methods[i].attributes, class->methods[i].attributes_count);
 	free(class->methods);
 	attributefree(class->attributes, class->attributes_count);
-	free(class);
 }
 
 /* read class file */
-ClassFile *
-file_read(char *filename)
+int
+file_read(FILE *fp, ClassFile *class)
 {
-	ClassFile *class = NULL;
-
-	if ((filep = fopen(filename, "rb")) == NULL) {
-		saverrno = errno;
-		errtag = ERR_OPEN;
-		goto error;
-	}
 	if (setjmp(jmpenv))
 		goto error;
-	if (readu(4) != MAGIC) {
+	if (readu(fp, 4) != MAGIC) {
 		errtag = ERR_MAGIC;
 		goto error;
 	}
-	if ((class = calloc(1, sizeof *class)) == NULL) {
-		errtag = ERR_ALLOC;
-		goto error;
-	}
-	class->minor_version = readu(2);
-	class->major_version = readu(2);
-	class->constant_pool_count = readu(2);
-	class->constant_pool = readcp(class->constant_pool_count);
-	class->access_flags = readu(2);
-	class->this_class = readu(2);
-	class->super_class = readu(2);
-	class->interfaces_count = readu(2);
-	class->interfaces = readinterfaces(class->interfaces_count);
-	class->fields_count = readu(2);
-	class->fields = readfields(class, class->fields_count);
-	class->methods_count = readu(2);
-	class->methods = readmethods(class, class->methods_count);
-	class->attributes_count = readu(2);
-	class->attributes = readattributes(class, class->attributes_count);
-	fclose(filep);
-	return class;
+	class->minor_version = readu(fp, 2);
+	class->major_version = readu(fp, 2);
+	class->constant_pool_count = readu(fp, 2);
+	class->constant_pool = readcp(fp, class->constant_pool_count);
+	class->access_flags = readu(fp, 2);
+	class->this_class = readu(fp, 2);
+	class->super_class = readu(fp, 2);
+	class->interfaces_count = readu(fp, 2);
+	class->interfaces = readinterfaces(fp, class->interfaces_count);
+	class->fields_count = readu(fp, 2);
+	class->fields = readfields(fp, class, class->fields_count);
+	class->methods_count = readu(fp, 2);
+	class->methods = readmethods(fp, class, class->methods_count);
+	class->attributes_count = readu(fp, 2);
+	class->attributes = readattributes(fp, class, class->attributes_count);
+	return ERR_NONE;
 error:
-	if (filep != NULL) {
-		fclose(filep);
-		filep = NULL;
-	}
 	freestack();
 	file_free(class);
-	if (errtag == ERR_OPEN || errtag == ERR_READ)
-		warnx("%s: %s", filename, strerror(saverrno));
-	else
-		warnx("%s: %s", filename, errstr[errtag]);
-	return NULL;
+	return errtag;
 }

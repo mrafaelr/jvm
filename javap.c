@@ -228,6 +228,19 @@ static char *instrnames[] = {
 	[GOTO_W]          = "goto_w",
 	[JSR_W]           = "jsr_w",
 };
+static char *errstr[] = {
+	[ERR_NONE] = NULL,
+	[ERR_READ] = "could not read file",
+	[ERR_ALLOC] = "could not allocate memory",
+	[ERR_CODE] = "code does not follow jvm code constraints",
+	[ERR_CONSTANT] = "reference to entry of wrong type on constant pool",
+	[ERR_DESCRIPTOR] = "invalid descriptor string",
+	[ERR_EOF] = "unexpected end of file",
+	[ERR_INDEX] = "index to constant pool out of bounds",
+	[ERR_KIND] = "invalid method handle reference kind",
+	[ERR_MAGIC] = "invalid magic number",
+	[ERR_TAG] = "unknown constant pool tag",
+};
 
 /* flags */
 static int cflag = 0;
@@ -629,8 +642,11 @@ printconstant(ClassFile *class, Field *field)
 
 /* print field information */
 static void
-printfield(ClassFile *class, Field *field)
+printfield(ClassFile *class, U2 count)
 {
+	Field *field;
+
+	field = &class->fields[count];
 	if (!pflag && field->access_flags & ACC_PRIVATE)
 		return;
 	printf("  ");
@@ -780,7 +796,7 @@ printcode(Code_attribute *codeattr, U2 nargs)
 
 /* print method information */
 static void
-printmethod(ClassFile *class, Method *method)
+printmethod(ClassFile *class, U2 count)
 {
 	char *name;
 	int init = 0;
@@ -788,9 +804,13 @@ printmethod(ClassFile *class, Method *method)
 	Attribute *cattr;       /* Code_attribute */
 	Attribute *lnattr;      /* LineNumberTable_attribute */
 	Attribute *lvattr;      /* LocalVariableTable_attribute */
+	Method *method;
 
+	method = &class->methods[count];
 	if (!pflag && method->access_flags & ACC_PRIVATE)
 		return;
+	if (count && (lflag || sflag || cflag))
+		putchar('\n');
 	name = getutf8(class, method->name_index);
 	if (strcmp(name, "<init>") == 0) {
 		name = getutf8(class, class->constant_pool[class->this_class].info.class_info.name_index);
@@ -857,14 +877,10 @@ javap(ClassFile *class)
 	} else {
 		printf(" {\n");
 	}
-	for (i = 0; i < class->fields_count; i++) {
-		printfield(class, &class->fields[i]);
-	}
-	for (i = 0; i < class->methods_count; i++) {
-		if (i && (lflag || sflag || cflag))
-			putchar('\n');
-		printmethod(class, &class->methods[i]);
-	}
+	for (i = 0; i < class->fields_count; i++)
+		printfield(class, i);
+	for (i = 0; i < class->methods_count; i++)
+		printmethod(class, i);
 	printf("}\n");
 }
 
@@ -873,7 +889,9 @@ int
 main(int argc, char *argv[])
 {
 	ClassFile *class;
+	FILE *fp;
 	int exitval = EXIT_SUCCESS;
+	int status;
 	int ch;
 
 	setprogname(argv[0]);
@@ -906,14 +924,21 @@ main(int argc, char *argv[])
 	argv += optind;
 	if (argc == 0)
 		usage();
-	while (argc--) {
-		if ((class = file_read(*argv)) != NULL) {
+	class = emalloc(sizeof *class);
+	for (; argc--; argv++) {
+		if ((fp = fopen(*argv, "rb")) == NULL) {
+			warn("%s", *argv);
+			exitval = EXIT_FAILURE;
+			continue;
+		}
+		if ((status = file_read(fp, class)) != 0) {
+			warnx("%s: %s", *argv, errstr[status]);
+			exitval = EXIT_FAILURE;
+		} else {
 			javap(class);
 			file_free(class);
-		} else {
-			exitval = EXIT_FAILURE;
 		}
-		argv++;
+		fclose(fp);
 	}
 	return exitval;
 }

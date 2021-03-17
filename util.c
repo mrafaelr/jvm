@@ -18,6 +18,28 @@ setprogname(char *s)
 	progname = s;
 }
 
+/* call calloc checking for errors */
+void *
+ecalloc(size_t nmemb, size_t size)
+{
+	void *p;
+
+	if ((p = calloc(nmemb, size)) == NULL)
+		err(EXIT_FAILURE, "calloc");
+	return p;
+}
+
+/* call malloc checking for errors */
+void *
+emalloc(size_t size)
+{
+	void *p;
+
+	if ((p = malloc(size)) == NULL)
+		err(EXIT_FAILURE, "calloc");
+	return p;
+}
+
 /* get options, we do not support ':' on options */
 int
 getopt(int argc, char * const *argv, const char *options)

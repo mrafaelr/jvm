@@ -1,6 +1,8 @@
 #define LEN(x) (sizeof (x) / sizeof *(x))
 
 void setprogname(char *s);
+void *ecalloc(size_t nmemb, size_t size);
+void *emalloc(size_t size);
 int getopt(int argc, char * const *argv, const char *options);
 int32_t getint(uint32_t bytes);
 float getfloat(uint32_t bytes);
