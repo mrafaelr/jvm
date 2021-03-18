@@ -2,9 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "class.h"
 #include "util.h"
-#include "op.h"
+#include "class.h"
 #include "file.h"
 
 /* names */
@@ -25,18 +24,209 @@ static char *cptags[] = {
 	[CONSTANT_MethodType]         = "MethodType",
 	[CONSTANT_InvokeDynamic]      = "InvokeDynamic",
 };
-static char *errstr[] = {
-	[ERR_NONE] = NULL,
-	[ERR_READ] = "could not read file",
-	[ERR_ALLOC] = "could not allocate memory",
-	[ERR_CODE] = "code does not follow jvm code constraints",
-	[ERR_CONSTANT] = "reference to entry of wrong type on constant pool",
-	[ERR_DESCRIPTOR] = "invalid descriptor string",
-	[ERR_EOF] = "unexpected end of file",
-	[ERR_INDEX] = "index to constant pool out of bounds",
-	[ERR_KIND] = "invalid method handle reference kind",
-	[ERR_MAGIC] = "invalid magic number",
-	[ERR_TAG] = "unknown constant pool tag",
+static char *instrnames[] = {
+	[NOP]             = "nop",
+	[ACONST_NULL]     = "aconst_null",
+	[ICONST_M1]       = "iconst_m1",
+	[ICONST_0]        = "iconst_0",
+	[ICONST_1]        = "iconst_1",
+	[ICONST_2]        = "iconst_2",
+	[ICONST_3]        = "iconst_3",
+	[ICONST_4]        = "iconst_4",
+	[ICONST_5]        = "iconst_5",
+	[LCONST_0]        = "lconst_0",
+	[LCONST_1]        = "lconst_1",
+	[FCONST_0]        = "fconst_0",
+	[FCONST_1]        = "fconst_1",
+	[FCONST_2]        = "fconst_2",
+	[DCONST_0]        = "dconst_0",
+	[DCONST_1]        = "dconst_1",
+	[BIPUSH]          = "bipush",
+	[SIPUSH]          = "sipush",
+	[LDC]             = "ldc",
+	[LDC_W]           = "ldc_w",
+	[LDC2_W]          = "ldc2_w",
+	[ILOAD]           = "iload",
+	[LLOAD]           = "lload",
+	[FLOAD]           = "fload",
+	[DLOAD]           = "dload",
+	[ALOAD]           = "aload",
+	[ILOAD_0]         = "iload_0",
+	[ILOAD_1]         = "iload_1",
+	[ILOAD_2]         = "iload_2",
+	[ILOAD_3]         = "iload_3",
+	[LLOAD_0]         = "lload_0",
+	[LLOAD_1]         = "lload_1",
+	[LLOAD_2]         = "lload_2",
+	[LLOAD_3]         = "lload_3",
+	[FLOAD_0]         = "fload_0",
+	[FLOAD_1]         = "fload_1",
+	[FLOAD_2]         = "fload_2",
+	[FLOAD_3]         = "fload_3",
+	[DLOAD_0]         = "dload_0",
+	[DLOAD_1]         = "dload_1",
+	[DLOAD_2]         = "dload_2",
+	[DLOAD_3]         = "dload_3",
+	[ALOAD_0]         = "aload_0",
+	[ALOAD_1]         = "aload_1",
+	[ALOAD_2]         = "aload_2",
+	[ALOAD_3]         = "aload_3",
+	[IALOAD]          = "iaload",
+	[LALOAD]          = "laload",
+	[FALOAD]          = "faload",
+	[DALOAD]          = "daload",
+	[AALOAD]          = "aaload",
+	[BALOAD]          = "baload",
+	[CALOAD]          = "caload",
+	[SALOAD]          = "saload",
+	[ISTORE]          = "istore",
+	[LSTORE]          = "lstore",
+	[FSTORE]          = "fstore",
+	[DSTORE]          = "dstore",
+	[ASTORE]          = "astore",
+	[ISTORE_0]        = "istore_0",
+	[ISTORE_1]        = "istore_1",
+	[ISTORE_2]        = "istore_2",
+	[ISTORE_3]        = "istore_3",
+	[LSTORE_0]        = "lstore_0",
+	[LSTORE_1]        = "lstore_1",
+	[LSTORE_2]        = "lstore_2",
+	[LSTORE_3]        = "lstore_3",
+	[FSTORE_0]        = "fstore_0",
+	[FSTORE_1]        = "fstore_1",
+	[FSTORE_2]        = "fstore_2",
+	[FSTORE_3]        = "fstore_3",
+	[DSTORE_0]        = "dstore_0",
+	[DSTORE_1]        = "dstore_1",
+	[DSTORE_2]        = "dstore_2",
+	[DSTORE_3]        = "dstore_3",
+	[ASTORE_0]        = "astore_0",
+	[ASTORE_1]        = "astore_1",
+	[ASTORE_2]        = "astore_2",
+	[ASTORE_3]        = "astore_3",
+	[IASTORE]         = "iastore",
+	[LASTORE]         = "lastore",
+	[FASTORE]         = "fastore",
+	[DASTORE]         = "dastore",
+	[AASTORE]         = "aastore",
+	[BASTORE]         = "bastore",
+	[CASTORE]         = "castore",
+	[SASTORE]         = "sastore",
+	[POP]             = "pop",
+	[POP2]            = "pop2",
+	[DUP]             = "dup",
+	[DUP_X1]          = "dup_x1",
+	[DUP_X2]          = "dup_x2",
+	[DUP2]            = "dup2",
+	[DUP2_X1]         = "dup2_x1",
+	[DUP2_X2]         = "dup2_x2",
+	[SWAP]            = "swap",
+	[IADD]            = "iadd",
+	[LADD]            = "ladd",
+	[FADD]            = "fadd",
+	[DADD]            = "dadd",
+	[ISUB]            = "isub",
+	[LSUB]            = "lsub",
+	[FSUB]            = "fsub",
+	[DSUB]            = "dsub",
+	[IMUL]            = "imul",
+	[LMUL]            = "lmul",
+	[FMUL]            = "fmul",
+	[DMUL]            = "dmul",
+	[IDIV]            = "idiv",
+	[LDIV]            = "ldiv",
+	[FDIV]            = "fdiv",
+	[DDIV]            = "ddiv",
+	[IREM]            = "irem",
+	[LREM]            = "lrem",
+	[FREM]            = "frem",
+	[DREM]            = "drem",
+	[INEG]            = "ineg",
+	[LNEG]            = "lneg",
+	[FNEG]            = "fneg",
+	[DNEG]            = "dneg",
+	[ISHL]            = "ishl",
+	[LSHL]            = "lshl",
+	[ISHR]            = "ishr",
+	[LSHR]            = "lshr",
+	[IUSHR]           = "iushr",
+	[LUSHR]           = "lushr",
+	[IAND]            = "iand",
+	[LAND]            = "land",
+	[IOR]             = "ior",
+	[LOR]             = "lor",
+	[IXOR]            = "ixor",
+	[LXOR]            = "lxor",
+	[IINC]            = "iinc",
+	[I2L]             = "i2l",
+	[I2F]             = "i2f",
+	[I2D]             = "i2d",
+	[L2I]             = "l2i",
+	[L2F]             = "l2f",
+	[L2D]             = "l2d",
+	[F2I]             = "f2i",
+	[F2L]             = "f2l",
+	[F2D]             = "f2d",
+	[D2I]             = "d2i",
+	[D2L]             = "d2l",
+	[D2F]             = "d2f",
+	[I2B]             = "i2b",
+	[I2C]             = "i2c",
+	[I2S]             = "i2s",
+	[LCMP]            = "lcmp",
+	[FCMPL]           = "fcmpl",
+	[FCMPG]           = "fcmpg",
+	[DCMPL]           = "dcmpl",
+	[DCMPG]           = "dcmpg",
+	[IFEQ]            = "ifeq",
+	[IFNE]            = "ifne",
+	[IFLT]            = "iflt",
+	[IFGE]            = "ifge",
+	[IFGT]            = "ifgt",
+	[IFLE]            = "ifle",
+	[IF_ICMPEQ]       = "if_icmpeq",
+	[IF_ICMPNE]       = "if_icmpne",
+	[IF_ICMPLT]       = "if_icmplt",
+	[IF_ICMPGE]       = "if_icmpge",
+	[IF_ICMPGT]       = "if_icmpgt",
+	[IF_ICMPLE]       = "if_icmple",
+	[IF_ACMPEQ]       = "if_acmpeq",
+	[IF_ACMPNE]       = "if_acmpne",
+	[GOTO]            = "goto",
+	[JSR]             = "jsr",
+	[RET]             = "ret",
+	[TABLESWITCH]     = "tableswitch",
+	[LOOKUPSWITCH]    = "lookupswitch",
+	[IRETURN]         = "ireturn",
+	[LRETURN]         = "lreturn",
+	[FRETURN]         = "freturn",
+	[DRETURN]         = "dreturn",
+	[ARETURN]         = "areturn",
+	[RETURN]          = "return",
+	[GETSTATIC]       = "getstatic",
+	[PUTSTATIC]       = "putstatic",
+	[GETFIELD]        = "getfield",
+	[PUTFIELD]        = "putfield",
+	[INVOKEVIRTUAL]   = "invokevirtual",
+	[INVOKESPECIAL]   = "invokespecial",
+	[INVOKESTATIC]    = "invokestatic",
+	[INVOKEINTERFACE] = "invokeinterface",
+	[INVOKEDYNAMIC]   = "invokedynamic",
+	[NEW]             = "new",
+	[NEWARRAY]        = "newarray",
+	[ANEWARRAY]       = "anewarray",
+	[ARRAYLENGTH]     = "arraylength",
+	[ATHROW]          = "athrow",
+	[CHECKCAST]       = "checkcast",
+	[INSTANCEOF]      = "instanceof",
+	[MONITORENTER]    = "monitorenter",
+	[MONITOREXIT]     = "monitorexit",
+	[WIDE]            = "wide",
+	[MULTIANEWARRAY]  = "multianewarray",
+	[IFNULL]          = "ifnull",
+	[IFNONNULL]       = "ifnonnull",
+	[GOTO_W]          = "goto_w",
+	[JSR_W]           = "jsr_w",
 };
 
 /* flags */
@@ -146,14 +336,14 @@ printcp(ClassFile *class)
 			n = (n > 0 && n < 14) ? 14 - n : 0;
 			while (n--)
 				putchar(' ');
-			printf("// %s", getutf8(class, cp[i].info.class_info.name_index));
+			printf("// %s", class_getutf8(class, cp[i].info.class_info.name_index));
 			break;
 		case CONSTANT_String:
 			n = printf("#%u", cp[i].info.string_info.string_index);
 			n = (n > 0 && n < 14) ? 14 - n : 0;
 			while (n--)
 				putchar(' ');
-			printf("// %s", getutf8(class, cp[i].info.string_info.string_index));
+			printf("// %s", class_getutf8(class, cp[i].info.string_info.string_index));
 			break;
 		case CONSTANT_Fieldref:
 			printf("#%u", cp[i].info.fieldref_info.class_index);
@@ -193,7 +383,7 @@ printclass(ClassFile *class, U2 index)
 {
 	char *s;
 
-	s = getclassname(class, index);
+	s = class_getclassname(class, index);
 	while (*s) {
 		if (*s == '/')
 			putchar('.');
@@ -240,9 +430,9 @@ printsource(ClassFile *class)
 {
 	Attribute *attr;
 
-	if ((attr = getattr(class->attributes, class->attributes_count, SourceFile)) == NULL)
+	if ((attr = class_getattr(class->attributes, class->attributes_count, SourceFile)) == NULL)
 		return;
-	printf("Compiled from \"%s\"\n", getutf8(class, attr->info.sourcefile.sourcefile_index));
+	printf("Compiled from \"%s\"\n", class_getutf8(class, attr->info.sourcefile.sourcefile_index));
 }
 
 /* print class header */
@@ -271,7 +461,7 @@ printheader(ClassFile *class)
 		printf("class ");
 	}
 	printclass(class, class->this_class);
-	if (class->super_class && !istopclass(class)) {
+	if (class->super_class && !class_istopclass(class)) {
 		printf(" extends ");
 		printclass(class, class->super_class);
 		;
@@ -402,7 +592,7 @@ printconstant(ClassFile *class, Field *field)
 		                               class->constant_pool[index].info.double_info.low_bytes));
 		break;
 	case CONSTANT_String:
-		printf("String %s", getutf8(class, class->constant_pool[index].info.string_info.string_index));
+		printf("String %s", class_getutf8(class, class->constant_pool[index].info.string_info.string_index));
 		break;
 	}
 	putchar('\n');
@@ -432,10 +622,10 @@ printfield(ClassFile *class, U2 count)
 		printf("transient ");
 	if (field->access_flags & ACC_VOLATILE)
 		printf("volatile ");
-	printdeclaration(getutf8(class, field->descriptor_index), getutf8(class, field->name_index), 0);
+	printdeclaration(class_getutf8(class, field->descriptor_index), class_getutf8(class, field->name_index), 0);
 	printf(";\n");
 	if (sflag)
-		printf("    descriptor: %s\n", getutf8(class, field->descriptor_index));
+		printf("    descriptor: %s\n", class_getutf8(class, field->descriptor_index));
 	if (verbose) {
 		printf("    ");
 		printflags(field->access_flags, TYPE_FIELD);
@@ -476,7 +666,7 @@ printlocalvars(ClassFile *class, LocalVariableTable_attribute *lvattr)
 	printf("        Start  Length  Slot  Name   Signature\n");
 	for (i = 0; i < count; i++) {
 		printf("      %7u %7u %5u %5s   %s\n", lv[i].start_pc, lv[i].length, lv[i].index,
-		       getutf8(class, lv[i].name_index), getutf8(class, lv[i].descriptor_index));
+		       class_getutf8(class, lv[i].name_index), class_getutf8(class, lv[i].descriptor_index));
 	}
 }
 
@@ -502,8 +692,8 @@ printcode(Code_attribute *codeattr, U2 nargs)
 		opcode = code[i];
 		if (verbose)
 			printf("  ");
-		printf("%8u: %s\n", i, op_getname(opcode));
-		switch (op_getnoperands(code[i])) {
+		printf("%8u: %s\n", i, instrnames[opcode]);
+		switch (class_getnoperands(code[i])) {
 		case OP_WIDE:
 			switch (code[i]) {
 			case ILOAD:
@@ -555,7 +745,7 @@ printcode(Code_attribute *codeattr, U2 nargs)
 				i += 4;
 			break;
 		default:
-			for (j = 0; i < count && j < op_getnoperands(opcode); j++)
+			for (j = 0; i < count && j < class_getnoperands(opcode); j++)
 				i++;
 			break;
 		}
@@ -579,9 +769,9 @@ printmethod(ClassFile *class, U2 count)
 		return;
 	if (count && (lflag || sflag || cflag))
 		putchar('\n');
-	name = getutf8(class, method->name_index);
+	name = class_getutf8(class, method->name_index);
 	if (strcmp(name, "<init>") == 0) {
-		name = getclassname(class, class->this_class);
+		name = class_getclassname(class, class->this_class);
 		init = 1;
 	}
 	printf("  ");
@@ -603,20 +793,20 @@ printmethod(ClassFile *class, U2 count)
 		printf("native ");
 	if (method->access_flags & ACC_STRICT)
 		printf("strict ");
-	nargs = printdeclaration(getutf8(class, method->descriptor_index), name, init);
+	nargs = printdeclaration(class_getutf8(class, method->descriptor_index), name, init);
 	if (!(method->access_flags & ACC_STATIC))
 		nargs++;
 	printf(";\n");
 	if (sflag)
-		printf("    descriptor: %s\n", getutf8(class, method->descriptor_index));
+		printf("    descriptor: %s\n", class_getutf8(class, method->descriptor_index));
 	if (verbose) {
 		printf("    ");
 		printflags(method->access_flags, TYPE_METHOD);
 	}
-	cattr = getattr(method->attributes, method->attributes_count, Code);
+	cattr = class_getattr(method->attributes, method->attributes_count, Code);
 	if (cattr != NULL) {
-		lnattr = getattr(cattr->info.code.attributes, cattr->info.code.attributes_count, LineNumberTable);
-		lvattr = getattr(cattr->info.code.attributes, cattr->info.code.attributes_count, LocalVariableTable);
+		lnattr = class_getattr(cattr->info.code.attributes, cattr->info.code.attributes_count, LineNumberTable);
+		lvattr = class_getattr(cattr->info.code.attributes, cattr->info.code.attributes_count, LocalVariableTable);
 		if (cflag) {
 			printcode(&cattr->info.code, nargs);
 		}
@@ -700,7 +890,7 @@ main(int argc, char *argv[])
 			continue;
 		}
 		if ((status = file_read(fp, class)) != 0) {
-			warnx("%s: %s", *argv, errstr[status]);
+			warnx("%s: %s", *argv, file_errstr(status));
 			exitval = EXIT_FAILURE;
 		} else {
 			javap(class);

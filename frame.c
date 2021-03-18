@@ -7,7 +7,7 @@ static Frame *framestack = NULL;
 
 /* allocate frame; push it onto framestack; and return it */
 Frame *
-frame_push(Code_attribute *code, CP *cp)
+frame_push(Code_attribute *code, ClassFile *class)
 {
 	Frame *frame = NULL;
 	Value *local = NULL;
@@ -23,7 +23,7 @@ frame_push(Code_attribute *code, CP *cp)
 		return NULL;
 	}
 	frame->pc = 0;
-	frame->cp = cp;
+	frame->class = class;
 	frame->local = local;
 	frame->stack = stack;
 	frame->next = framestack;

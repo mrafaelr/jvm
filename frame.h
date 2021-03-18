@@ -11,13 +11,14 @@ typedef union Value {
 
 /* virtual machine frame structure */
 typedef struct Frame {
-	struct Frame *next;
-	union  Value *local;    /* local variable table */
-	union  Value *stack;    /* operand stack */
-	struct CP    *cp;       /* constant pool */
-	U2            pc;       /* program counter */
+	struct Frame           *next;
+	struct ClassFile       *class;  /* constant pool */
+	union  Value           *local;  /* local variable table */
+	union  Value           *stack;  /* operand stack */
+	struct Code_attribute  *code;   /* array of instructions */
+	U2                      pc;     /* program counter */
 } Frame;
 
-Frame *frame_push(Code_attribute *code, CP *cp);
+Frame *frame_push(Code_attribute *code, ClassFile *class);
 int frame_pop(void);
 void frame_del(void);

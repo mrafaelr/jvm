@@ -5,13 +5,28 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "class.h"
 #include "util.h"
-#include "op.h"
+#include "class.h"
 #include "file.h"
 
 #define MAGIC           0xCAFEBABE
 
+/* error tags */
+enum {
+	ERR_NONE = 0,
+	ERR_READ,
+	ERR_ALLOC,
+	ERR_CODE,
+	ERR_CONSTANT,
+	ERR_DESCRIPTOR,
+	ERR_EOF,
+	ERR_INDEX,
+	ERR_KIND,
+	ERR_MAGIC,
+	ERR_TAG,
+};
+
+/* stack of pointers to allocated memory */
 struct FreeStack {
 	struct FreeStack *next;
 	void *p;
@@ -22,8 +37,20 @@ static jmp_buf jmpenv;
 static struct FreeStack *freep = NULL;
 
 /* error variables */
-static int saverrno;
 static int errtag = ERR_NONE;
+static char *errstr[] = {
+	[ERR_NONE] = NULL,
+	[ERR_READ] = "could not read file",
+	[ERR_ALLOC] = "could not allocate memory",
+	[ERR_CODE] = "code does not follow jvm code constraints",
+	[ERR_CONSTANT] = "reference to entry of wrong type on constant pool",
+	[ERR_DESCRIPTOR] = "invalid descriptor string",
+	[ERR_EOF] = "unexpected end of file",
+	[ERR_INDEX] = "index to constant pool out of bounds",
+	[ERR_KIND] = "invalid method handle reference kind",
+	[ERR_MAGIC] = "invalid magic number",
+	[ERR_TAG] = "unknown constant pool tag",
+};
 
 /* add pointer to stack of pointers to be freed when an error occurs */
 static void
@@ -205,12 +232,10 @@ static void
 readb(FILE *fp, void *buf, U4 count)
 {
 	if (fread(buf, 1, count, fp) != count) {
-		if (feof(fp)) {
+		if (feof(fp))
 			errtag = ERR_EOF;
-		} else {
-			saverrno = errno;
+		else
 			errtag = ERR_READ;
-		}
 		longjmp(jmpenv, 1);
 	}
 }
@@ -433,7 +458,7 @@ readinterfaces(FILE *fp, U2 count)
 
 /* read code instructions, return point to instruction array */
 static U1 *
-readcode(FILE *fp, U4 count)
+readcode(FILE *fp, ClassFile *class, U4 count)
 {
 	int32_t j, npairs, high, low;
 	U1 *code;
@@ -446,7 +471,7 @@ readcode(FILE *fp, U4 count)
 		code[i] = readu(fp, 1);
 		if (code[i] >= CodeLast)
 			goto error;
-		switch (op_getnoperands(code[i])) {
+		switch (class_getnoperands(code[i])) {
 		case OP_WIDE:
 			code[++i] = readu(fp, 1);
 			switch (code[i]) {
@@ -497,8 +522,17 @@ readcode(FILE *fp, U4 count)
 				code[++i] = readu(fp, 1);
 			break;
 		default:
-			for (j = op_getnoperands(code[i]); j > 0; j--)
+			switch (code[i]) {
+			case GETSTATIC: case PUTSTATIC: case GETFIELD: case PUTFIELD:
 				code[++i] = readu(fp, 1);
+				code[++i] = readu(fp, 1);
+				checkindex(class->constant_pool, class->constant_pool_count, CONSTANT_Fieldref, code[i - 1] << 8 | code[i]);
+				break;
+			default:
+				for (j = class_getnoperands(code[i]); j > 0; j--)
+					code[++i] = readu(fp, 1);
+				break;
+			}
 			break;
 		}
 	}
@@ -632,7 +666,7 @@ readattributes(FILE *fp, ClassFile *class, U2 count)
 			p[i].info.code.max_stack = readu(fp, 2);
 			p[i].info.code.max_locals = readu(fp, 2);
 			p[i].info.code.code_length = readu(fp, 4);
-			p[i].info.code.code = readcode(fp, p[i].info.code.code_length);
+			p[i].info.code.code = readcode(fp, class, p[i].info.code.code_length);
 			p[i].info.code.exception_table_length = readu(fp, 2);
 			p[i].info.code.exception_table = readexceptions(fp, p[i].info.code.exception_table_length);
 			p[i].info.code.attributes_count = readu(fp, 2);
@@ -806,4 +840,11 @@ error:
 	freestack();
 	file_free(class);
 	return errtag;
+}
+
+/* return string describing error tag */
+char *
+file_errstr(int i)
+{
+	return errstr[i];
 }

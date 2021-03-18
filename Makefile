@@ -1,3 +1,6 @@
+JAVAOBJS  = java.o  util.o class.o file.o load.o frame.o code.o
+JAVAPOBJS = javap.o util.o class.o file.o
+
 LIBS =
 INCS =
 CPPFLAGS = -D_POSIX_C_SOURCE=200809L
@@ -8,16 +11,17 @@ LINTFLAGS = -nullret -predboolint
 
 all: java javap
 
-java: java.o util.o class.o file.o frame.o
-	${CC} -o $@ java.o frame.o class.o util.o op.o file.o ${LDFLAGS}
+java: ${JAVAOBJS}
+	${CC} -o $@ ${JAVAOBJS} ${LDFLAGS}
 
-javap: javap.o util.o class.o file.o
-	${CC} -o $@ javap.o class.o util.o op.o file.o ${LDFLAGS}
+javap: ${JAVAPOBJS}
+	${CC} -o $@ ${JAVAPOBJS} ${LDFLAGS}
 
-java.o:  class.h frame.h op.h util.h file.h
-javap.o: class.h         op.h util.h file.h
-file.o:  class.h         op.h util.h file.h
-op.o:    class.h frame.h op.h
+javap.o: util.h class.h file.h
+java.o:  util.h class.h load.h code.h
+code.o:  util.h class.h load.h frame.h
+load.o:  util.h class.h file.h
+file.o:  util.h class.h file.h
 frame.o: class.h frame.h
 class.o: class.h
 
