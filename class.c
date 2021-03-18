@@ -240,10 +240,22 @@ getclassname(ClassFile *class, U2 index)
 	return getutf8(class, class->constant_pool[index].info.class_info.name_index);
 }
 
+/* get method matching name and descriptor from class */
+Method *
+getmethod(ClassFile *class, char *name, char *descr)
+{
+	U2 i;
+
+	for (i = 0; i < class->methods_count; i++)
+		if (strcmp(name, getutf8(class, class->methods[i].name_index)) == 0 &&
+		    strcmp(descr, getutf8(class, class->methods[i].descriptor_index)) == 0)
+			return &class->methods[i];
+	return NULL;
+}
+
 /* check if super class is java.lang.Object */
 int
 istopclass(ClassFile *class)
 {
-	return strcmp(class->constant_pool[class->constant_pool[class->super_class].info.class_info.name_index].info.utf8_info.bytes,
-		      "java/lang/Object") == 0;
+	return strcmp(getclassname(class, class->super_class), "java/lang/Object") == 0;
 }

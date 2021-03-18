@@ -107,15 +107,12 @@ loadclass(char *classname)
 		}
 	}
 	free(s);
-	if (fp == NULL) {
-		freeclasses();
+	if (fp == NULL)
 		errx(EXIT_FAILURE, "could not find class %s", classname);
-	}
 	class = emalloc(sizeof *class);
 	if (file_read(fp, class) != 0) {
 		fclose(fp);
 		free(class);
-		freeclasses();
 		errx(EXIT_FAILURE, "could not load class %s", classname);
 	}
 	fclose(fp);
@@ -130,7 +127,6 @@ loadclass(char *classname)
 		for (tmp = super; tmp; tmp = getclass(getclassname(tmp, tmp->super_class))) {
 			if (strcmp(getclassname(class, class->this_class),
 			           getclassname(tmp, tmp->this_class)) == 0) {
-				freeclasses();
 				errx(EXIT_FAILURE, "class circularity error");
 			}
 		}
@@ -142,6 +138,8 @@ loadclass(char *classname)
 int
 main(int argc, char *argv[])
 {
+	ClassFile *class;
+	Method *method;
 	char *cpath = NULL;     /* class path */
 	int i;
 
@@ -159,6 +157,8 @@ main(int argc, char *argv[])
 	if (cpath == NULL)
 		cpath = ".";
 	parsecpath(cpath);
-	loadclass(argv[i++]);
-	freeclasses();
+	atexit(freeclasses);
+	class = loadclass(argv[i]);
+	if ((method = getmethod(class, "main", "([Ljava/lang/String;)V")) == NULL)
+		errx(EXIT_FAILURE, "could not find method main in class %s", argv[i]);
 }

@@ -516,4 +516,5 @@ int getnoperands(U1 instruction);
 Attribute *getattr(Attribute *attrs, U2 count, AttributeTag tag);
 char *getutf8(ClassFile *class, U2 index);
 char *getclassname(ClassFile *class, U2 index);
+Method *getmethod(ClassFile *class, char *name, char *descr);
 int istopclass(ClassFile *class);
