@@ -1,14 +1,17 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "class.h"
-#include "file.h"
-#include "util.h"
 #ifdef _WIN32
 #include <direct.h>
 #else
 #include <unistd.h>
 #endif
+#include "class.h"
+#include "util.h"
+#include "op.h"
+#include "file.h"
+#include "frame.h"
 
 /* path separator */
 #ifdef _WIN32
@@ -53,7 +56,7 @@ parsecpath(char *cpath)
 
 /* check if a class with the given name is loaded */
 static ClassFile *
-getclass(char *classname)
+classisloaded(char *classname)
 {
 	ClassFile *class;
 
@@ -81,13 +84,13 @@ classfree(void)
 static ClassFile *
 classload(char *classname)
 {
-	ClassFile *class, *super, *tmp;
+	ClassFile *class, *tmp;
 	FILE *fp = NULL;
 	size_t len, i;
 	char *s;
 	int n;
 
-	if ((class = getclass(classname)) != NULL)
+	if ((class = classisloaded(classname)) != NULL)
 		return class;
 	len = strlen(classname);
 	s = emalloc(len + 7);           /* 7 == strlen(".class") + 1 */
@@ -121,10 +124,11 @@ classload(char *classname)
 		errx(EXIT_FAILURE, "could not find class %s", classname);
 	}
 	class->next = classes;
+	class->super = NULL;
 	classes = class;
 	if (!istopclass(class)) {
-		super = classload(getclassname(class, class->super_class));
-		for (tmp = super; tmp; tmp = getclass(getclassname(tmp, tmp->super_class))) {
+		class->super = classload(getclassname(class, class->super_class));
+		for (tmp = class->super; tmp; tmp = tmp->super) {
 			if (strcmp(getclassname(class, class->this_class),
 			           getclassname(tmp, tmp->this_class)) == 0) {
 				errx(EXIT_FAILURE, "class circularity error");
@@ -134,12 +138,33 @@ classload(char *classname)
 	return class;
 }
 
+/* call method */
+static void
+methodcall(ClassFile *class, char *name, char *descr, U2 access)
+{
+	Attribute *cattr;       /* Code_attribute */
+	Code_attribute *code;
+	Method *method;
+	Frame *frame;
+	U2 i;
+
+	if ((method = getmethod(class, name, descr)) == NULL || !(method->access_flags & access))
+		errx(EXIT_FAILURE, "could not find method %s in class %s", name, getclassname(class, class->this_class));
+	if ((cattr = getattr(method->attributes, method->attributes_count, Code)) == NULL)
+		err(EXIT_FAILURE, "could not find code for method %s", name);
+	code = &cattr->info.code;
+	if ((frame = frame_push(code, class->constant_pool)) == NULL)
+		err(EXIT_FAILURE, "out of memory");
+	for (i = 0; i < code->code_length; i++)
+		printf("%04x\n", code->code[i]);
+	frame_pop();
+}
+
 /* launches a java application */
 int
 main(int argc, char *argv[])
 {
 	ClassFile *class;
-	Method *method;
 	char *cpath = NULL;
 	int i;
 
@@ -158,7 +183,8 @@ main(int argc, char *argv[])
 		cpath = ".";
 	parsecpath(cpath);
 	atexit(classfree);
+	atexit(frame_del);
 	class = classload(argv[i]);
-	if ((method = getmethod(class, "main", "([Ljava/lang/String;)V")) == NULL)
-		errx(EXIT_FAILURE, "could not find method main in class %s", argv[i]);
+	methodcall(class, "main", "([Ljava/lang/String;)V", ACC_PUBLIC | ACC_STATIC);
+	return 0;
 }

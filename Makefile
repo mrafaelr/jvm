@@ -6,17 +6,20 @@ LDFLAGS = ${LIBS}
 LINT = splint
 LINTFLAGS = -nullret -predboolint
 
-all: javap java
+all: java javap
+
+java: java.o util.o class.o file.o frame.o
+	${CC} -o $@ java.o frame.o class.o util.o op.o file.o ${LDFLAGS}
 
 javap: javap.o util.o class.o file.o
-	${CC} -o $@ javap.o util.o class.o file.o ${LDFLAGS}
+	${CC} -o $@ javap.o class.o util.o op.o file.o ${LDFLAGS}
 
-java: java.o util.o class.o file.o
-	${CC} -o $@ java.o util.o class.o file.o ${LDFLAGS}
-
-java.o:  class.h util.h file.h
-javap.o: class.h util.h file.h
-file.o:  class.h util.h
+java.o:  class.h frame.h op.h util.h file.h
+javap.o: class.h         op.h util.h file.h
+file.o:  class.h         op.h util.h file.h
+op.o:    class.h frame.h op.h
+frame.o: class.h frame.h
+class.o: class.h
 
 lint:
 	-${LINT} ${CPPFLAGS} ${LINTFLAGS} javap.c util.c class.c file.c

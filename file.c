@@ -1,12 +1,13 @@
 #include <errno.h>
 #include <math.h>
 #include <setjmp.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "class.h"
 #include "util.h"
+#include "op.h"
 #include "file.h"
 
 #define MAGIC           0xCAFEBABE
@@ -445,7 +446,7 @@ readcode(FILE *fp, U4 count)
 		code[i] = readu(fp, 1);
 		if (code[i] >= CodeLast)
 			goto error;
-		switch (getnoperands(code[i])) {
+		switch (op_getnoperands(code[i])) {
 		case OP_WIDE:
 			code[++i] = readu(fp, 1);
 			switch (code[i]) {
@@ -496,7 +497,7 @@ readcode(FILE *fp, U4 count)
 				code[++i] = readu(fp, 1);
 			break;
 		default:
-			for (j = getnoperands(code[i]); j > 0; j--)
+			for (j = op_getnoperands(code[i]); j > 0; j--)
 				code[++i] = readu(fp, 1);
 			break;
 		}

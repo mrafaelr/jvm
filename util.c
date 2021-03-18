@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "util.h"
 
 static char *progname;
 
@@ -16,57 +15,6 @@ void
 setprogname(char *s)
 {
 	progname = s;
-}
-
-/* call calloc checking for errors */
-void *
-ecalloc(size_t nmemb, size_t size)
-{
-	void *p;
-
-	if ((p = calloc(nmemb, size)) == NULL)
-		err(EXIT_FAILURE, "calloc");
-	return p;
-}
-
-/* call malloc checking for errors */
-void *
-emalloc(size_t size)
-{
-	void *p;
-
-	if ((p = malloc(size)) == NULL)
-		err(EXIT_FAILURE, "calloc");
-	return p;
-}
-
-/* get options, we do not support ':' on options */
-int
-getopt(int argc, char * const *argv, const char *options)
-{
-	static int optpos = 1;
-
-	if (!optind) {                  /* reset */
-		optind = 1;
-		optpos = 1;
-	}
-	if (optind >= argc || !argv[optind] || argv[optind][0] != '-') {
-		return -1;
-	}
-	if (strcmp(argv[optind], "--") == 0) {
-		optind++;
-		return -1;
-	}
-	optopt = argv[optind][optpos];
-	if (strchr(options, argv[optind][optpos]) == NULL) {
-		warnx("unknown option -- %c", argv[optind][optpos]);
-		return '?';
-	}
-	if (!argv[optind][++optpos]) {
-		optind++;
-		optpos = 1;
-	}
-	return optopt;
 }
 
 /* get int32_t from uint32_t */
@@ -171,4 +119,55 @@ warnx(const char *fmt, ...)
 		(void)vfprintf(stderr, fmt, ap);
 	va_end(ap);
 	(void)fprintf(stderr, "\n");
+}
+
+/* call calloc checking for errors */
+void *
+ecalloc(size_t nmemb, size_t size)
+{
+	void *p;
+
+	if ((p = calloc(nmemb, size)) == NULL)
+		err(EXIT_FAILURE, "calloc");
+	return p;
+}
+
+/* call malloc checking for errors */
+void *
+emalloc(size_t size)
+{
+	void *p;
+
+	if ((p = malloc(size)) == NULL)
+		err(EXIT_FAILURE, "calloc");
+	return p;
+}
+
+/* get options, we do not support ':' on options */
+int
+getopt(int argc, char * const *argv, const char *options)
+{
+	static int optpos = 1;
+
+	if (!optind) {                  /* reset */
+		optind = 1;
+		optpos = 1;
+	}
+	if (optind >= argc || !argv[optind] || argv[optind][0] != '-') {
+		return -1;
+	}
+	if (strcmp(argv[optind], "--") == 0) {
+		optind++;
+		return -1;
+	}
+	optopt = argv[optind][optpos];
+	if (strchr(options, argv[optind][optpos]) == NULL) {
+		warnx("unknown option -- %c", argv[optind][optpos]);
+		return '?';
+	}
+	if (!argv[optind][++optpos]) {
+		optind++;
+		optpos = 1;
+	}
+	return optopt;
 }
