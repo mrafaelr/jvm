@@ -6,14 +6,17 @@ course of the Computer Science department of the University of Brasilia.
 
 The following tools are implemented:
 • javap(1): Disassembles one or more class files.
-• java(1):  Launches a Java application (TODO).
+• java(1):  Launches a Java application.
 
 
 § Files
 
 • util.[ch]:    miscellaneous routines
-• class.[ch]:   .class file structure definition
-• file.[ch]:    .class file reader
+• class.[ch]:   routines and definitions related to class structure
+• file.[ch]:    routines to read and free .class files
+• load.[ch]:    routines to maintain and get loaded classes
+• frame.[ch]:   routines and definitions related to the frmae stack
+• code.[ch]:    routines for instructions and method calling
 • javap.c:      .class file disassembler
 • java.c:       .class file interpreter
 
