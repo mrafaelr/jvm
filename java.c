@@ -65,7 +65,7 @@ getclass(char *classname)
 
 /* free all the classes in the list of classes */
 static void
-freeclasses(void)
+classfree(void)
 {
 	ClassFile *tmp;
 
@@ -79,7 +79,7 @@ freeclasses(void)
 
 /* recursivelly load class and its superclasses from file matching class name */
 static ClassFile *
-loadclass(char *classname)
+classload(char *classname)
 {
 	ClassFile *class, *super, *tmp;
 	FILE *fp = NULL;
@@ -123,7 +123,7 @@ loadclass(char *classname)
 	class->next = classes;
 	classes = class;
 	if (!istopclass(class)) {
-		super = loadclass(getclassname(class, class->super_class));
+		super = classload(getclassname(class, class->super_class));
 		for (tmp = super; tmp; tmp = getclass(getclassname(tmp, tmp->super_class))) {
 			if (strcmp(getclassname(class, class->this_class),
 			           getclassname(tmp, tmp->this_class)) == 0) {
@@ -140,11 +140,11 @@ main(int argc, char *argv[])
 {
 	ClassFile *class;
 	Method *method;
-	char *cpath = NULL;     /* class path */
+	char *cpath = NULL;
 	int i;
 
-	cpath = getenv("CLASSPATH");
 	setprogname(argv[0]);
+	cpath = getenv("CLASSPATH");
 	for (i = 1; i < argc && argv[i][0] == '-'; i++) {
 		if (strcmp(argv[i], "-cp") == 0) {
 			if (++i >= argc)
@@ -157,8 +157,8 @@ main(int argc, char *argv[])
 	if (cpath == NULL)
 		cpath = ".";
 	parsecpath(cpath);
-	atexit(freeclasses);
-	class = loadclass(argv[i]);
+	atexit(classfree);
+	class = classload(argv[i]);
 	if ((method = getmethod(class, "main", "([Ljava/lang/String;)V")) == NULL)
 		errx(EXIT_FAILURE, "could not find method main in class %s", argv[i]);
 }
