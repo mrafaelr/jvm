@@ -6,12 +6,16 @@ LDFLAGS = ${LIBS}
 LINT = splint
 LINTFLAGS = -nullret -predboolint
 
-all: javap
+all: javap java
 
 javap: javap.o util.o class.o file.o
 	${CC} -o $@ javap.o util.o class.o file.o ${LDFLAGS}
 
-javap.o: class.h file.h
+java: java.o util.o class.o file.o
+	${CC} -o $@ java.o util.o class.o file.o ${LDFLAGS}
+
+java.o:  class.h util.h file.h
+javap.o: class.h util.h file.h
 file.o:  class.h util.h
 
 lint:
@@ -21,6 +25,6 @@ lint:
 	${CC} ${CFLAGS} -c $<
 
 clean:
-	-rm javap *.o
+	-rm java javap *.o
 
 .PHONY: all clean lint

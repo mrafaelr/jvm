@@ -445,7 +445,7 @@ readcode(FILE *fp, U4 count)
 		code[i] = readu(fp, 1);
 		if (code[i] >= CodeLast)
 			goto error;
-		switch (noperands[code[i]]) {
+		switch (getnoperands(code[i])) {
 		case OP_WIDE:
 			code[++i] = readu(fp, 1);
 			switch (code[i]) {
@@ -496,7 +496,7 @@ readcode(FILE *fp, U4 count)
 				code[++i] = readu(fp, 1);
 			break;
 		default:
-			for (j = noperands[code[i]]; j > 0; j--)
+			for (j = getnoperands(code[i]); j > 0; j--)
 				code[++i] = readu(fp, 1);
 			break;
 		}

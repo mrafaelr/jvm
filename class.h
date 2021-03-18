@@ -494,6 +494,7 @@ typedef struct LocalVariable {
 } LocalVariable;
 
 typedef struct ClassFile {
+	struct ClassFile *next;
 	U2                minor_version;
 	U2                major_version;
 	U2                constant_pool_count;
@@ -511,4 +512,8 @@ typedef struct ClassFile {
 	struct Attribute *attributes;
 } ClassFile;
 
-extern int noperands[];
+int getnoperands(U1 instruction);
+Attribute *getattr(Attribute *attrs, U2 count, AttributeTag tag);
+char *getutf8(ClassFile *class, U2 index);
+char *getclassname(ClassFile *class, U2 index);
+int istopclass(ClassFile *class);

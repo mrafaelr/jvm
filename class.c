@@ -1,6 +1,8 @@
+#include <stddef.h>
+#include <string.h>
 #include "class.h"
 
-int noperands[] = {
+static int noperands[] = {
 	[NOP]             = 0,
 	[ACONST_NULL]     = 0,
 	[ICONST_M1]       = 0,
@@ -204,3 +206,44 @@ int noperands[] = {
 	[GOTO_W]          = 4,
 	[JSR_W]           = 4,
 };
+
+/* get number of operands of a given instruction */
+int
+getnoperands(U1 instruction)
+{
+	return noperands[instruction];
+}
+
+/* get attribute with given tag in list of attributes */
+Attribute *
+getattr(Attribute *attrs, U2 count, AttributeTag tag)
+{
+	U2 i;
+
+	for (i = 0; i < count; i++)
+		if (attrs[i].tag == tag)
+			return &attrs[i];
+	return NULL;
+}
+
+/* get string from constant pool */
+char *
+getutf8(ClassFile *class, U2 index)
+{
+	return class->constant_pool[index].info.utf8_info.bytes;
+}
+
+/* get string from constant pool */
+char *
+getclassname(ClassFile *class, U2 index)
+{
+	return getutf8(class, class->constant_pool[index].info.class_info.name_index);
+}
+
+/* check if super class is java.lang.Object */
+int
+istopclass(ClassFile *class)
+{
+	return strcmp(class->constant_pool[class->constant_pool[class->super_class].info.class_info.name_index].info.utf8_info.bytes,
+		      "java/lang/Object") == 0;
+}

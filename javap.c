@@ -257,35 +257,6 @@ usage(void)
 	exit(EXIT_FAILURE);
 }
 
-/* get attribute with given tag in list of attributes */
-static Attribute *
-getattr(Attribute *attrs, U2 count, AttributeTag tag)
-{
-	U2 i;
-
-	for (i = 0; i < count; i++)
-		if (attrs[i].tag == tag)
-			return &attrs[i];
-	return NULL;
-}
-
-/* get string from constant pool */
-static char *
-getutf8(ClassFile *class, U2 index)
-{
-	return class->constant_pool[index].info.utf8_info.bytes;
-}
-
-/* check if super class is java.lang.Object */
-static int
-istopclass(ClassFile *class)
-{
-	char *s;
-
-	s = class->constant_pool[class->constant_pool[class->super_class].info.class_info.name_index].info.utf8_info.bytes;
-	return strcmp(s, "java/lang/Object") == 0;
-}
-
 /* print access flags */
 static void
 printflags(U2 flags, int type)
@@ -425,7 +396,7 @@ printclass(ClassFile *class, U2 index)
 {
 	char *s;
 
-	s = class->constant_pool[class->constant_pool[index].info.class_info.name_index].info.utf8_info.bytes;
+	s = getclassname(class, index);
 	while (*s) {
 		if (*s == '/')
 			putchar('.');
@@ -735,7 +706,7 @@ printcode(Code_attribute *codeattr, U2 nargs)
 		if (verbose)
 			printf("  ");
 		printf("%8u: %s\n", i, instrnames[opcode]);
-		switch (noperands[code[i]]) {
+		switch (getnoperands(code[i])) {
 		case OP_WIDE:
 			switch (code[i]) {
 			case ILOAD:
@@ -787,7 +758,7 @@ printcode(Code_attribute *codeattr, U2 nargs)
 				i += 4;
 			break;
 		default:
-			for (j = 0; i < count && j < noperands[opcode]; j++)
+			for (j = 0; i < count && j < getnoperands(opcode); j++)
 				i++;
 			break;
 		}
@@ -813,7 +784,7 @@ printmethod(ClassFile *class, U2 count)
 		putchar('\n');
 	name = getutf8(class, method->name_index);
 	if (strcmp(name, "<init>") == 0) {
-		name = getutf8(class, class->constant_pool[class->this_class].info.class_info.name_index);
+		name = getclassname(class, class->this_class);
 		init = 1;
 	}
 	printf("  ");
