@@ -13,10 +13,8 @@ The following tools are implemented:
 
 • util.[ch]:    miscellaneous routines
 • class.[ch]:   routines and definitions related to class structure
-• file.[ch]:    routines to read and free .class files
-• load.[ch]:    routines to maintain and get loaded classes
 • frame.[ch]:   routines and definitions related to the frmae stack
-• code.[ch]:    routines for instructions and method calling
+• file.[ch]:    routines to read and free .class files
 • javap.c:      .class file disassembler
 • java.c:       .class file interpreter
 

@@ -1,4 +1,4 @@
-JAVAOBJS  = java.o  util.o class.o file.o load.o frame.o code.o
+JAVAOBJS  = java.o  util.o class.o file.o frame.o
 JAVAPOBJS = javap.o util.o class.o file.o
 
 LIBS =
@@ -17,11 +17,9 @@ java: ${JAVAOBJS}
 javap: ${JAVAPOBJS}
 	${CC} -o $@ ${JAVAPOBJS} ${LDFLAGS}
 
-javap.o: util.h class.h file.h
-java.o:  util.h class.h load.h code.h
-code.o:  util.h class.h load.h frame.h
-load.o:  util.h class.h file.h
-file.o:  util.h class.h file.h
+java.o:  class.h util.h file.h frame.h
+javap.o: class.h util.h file.h
+file.o:  class.h util.h
 frame.o: class.h frame.h
 class.o: class.h
 
