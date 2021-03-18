@@ -15,6 +15,7 @@ The following tools are implemented:
 • class.[ch]:   .class file structure definition
 • file.[ch]:    .class file reader
 • javap.c:      .class file disassembler
+• java.c:       .class file runner
 
 
 § See Also
