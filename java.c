@@ -212,17 +212,6 @@ opgetstatic(Frame *frame)
 	return 0;
 }
 
-/* ldc: push item from run-time constant pool */
-int
-opldc(Frame *frame)
-{
-	Value value;
-
-	value.u = frame->code->code[frame->pc++];
-	frame_stackpush(frame, value);
-	return 0;
-}
-
 /* invokevirtual: invoke instance method; dispatch based on class */
 int
 opinvokevirtual(Frame *frame)
@@ -234,6 +223,25 @@ opinvokevirtual(Frame *frame)
 	i |= frame->code->code[frame->pc++];
 	methodref = &frame->class->constant_pool[i].info.methodref_info;
 	resolvemethod(frame, frame->class, methodref);
+	return 0;
+}
+
+/* ldc: push item from run-time constant pool */
+int
+opldc(Frame *frame)
+{
+	Value value;
+
+	value.u = frame->code->code[frame->pc++];
+	frame_stackpush(frame, value);
+	return 0;
+}
+
+/* nop: do nothing */
+int
+opnop(Frame *frame)
+{
+	(void)frame;
 	return 0;
 }
 
@@ -249,28 +257,222 @@ opreturn(Frame *frame)
 void
 methodcall(ClassFile *class, Method *method)
 {
+	static int(*instrtab[])(Frame *) = {
+		[NOP]             = opnop,
+		[ACONST_NULL]     = opnop,
+		[ICONST_M1]       = opnop,
+		[ICONST_0]        = opnop,
+		[ICONST_1]        = opnop,
+		[ICONST_2]        = opnop,
+		[ICONST_3]        = opnop,
+		[ICONST_4]        = opnop,
+		[ICONST_5]        = opnop,
+		[LCONST_0]        = opnop,
+		[LCONST_1]        = opnop,
+		[FCONST_0]        = opnop,
+		[FCONST_1]        = opnop,
+		[FCONST_2]        = opnop,
+		[DCONST_0]        = opnop,
+		[DCONST_1]        = opnop,
+		[BIPUSH]          = opnop,
+		[SIPUSH]          = opnop,
+		[LDC]             = opldc,
+		[LDC_W]           = opnop,
+		[LDC2_W]          = opnop,
+		[ILOAD]           = opnop,
+		[LLOAD]           = opnop,
+		[FLOAD]           = opnop,
+		[DLOAD]           = opnop,
+		[ALOAD]           = opnop,
+		[ILOAD_0]         = opnop,
+		[ILOAD_1]         = opnop,
+		[ILOAD_2]         = opnop,
+		[ILOAD_3]         = opnop,
+		[LLOAD_0]         = opnop,
+		[LLOAD_1]         = opnop,
+		[LLOAD_2]         = opnop,
+		[LLOAD_3]         = opnop,
+		[FLOAD_0]         = opnop,
+		[FLOAD_1]         = opnop,
+		[FLOAD_2]         = opnop,
+		[FLOAD_3]         = opnop,
+		[DLOAD_0]         = opnop,
+		[DLOAD_1]         = opnop,
+		[DLOAD_2]         = opnop,
+		[DLOAD_3]         = opnop,
+		[ALOAD_0]         = opnop,
+		[ALOAD_1]         = opnop,
+		[ALOAD_2]         = opnop,
+		[ALOAD_3]         = opnop,
+		[IALOAD]          = opnop,
+		[LALOAD]          = opnop,
+		[FALOAD]          = opnop,
+		[DALOAD]          = opnop,
+		[AALOAD]          = opnop,
+		[BALOAD]          = opnop,
+		[CALOAD]          = opnop,
+		[SALOAD]          = opnop,
+		[ISTORE]          = opnop,
+		[LSTORE]          = opnop,
+		[FSTORE]          = opnop,
+		[DSTORE]          = opnop,
+		[ASTORE]          = opnop,
+		[ISTORE_0]        = opnop,
+		[ISTORE_1]        = opnop,
+		[ISTORE_2]        = opnop,
+		[ISTORE_3]        = opnop,
+		[LSTORE_0]        = opnop,
+		[LSTORE_1]        = opnop,
+		[LSTORE_2]        = opnop,
+		[LSTORE_3]        = opnop,
+		[FSTORE_0]        = opnop,
+		[FSTORE_1]        = opnop,
+		[FSTORE_2]        = opnop,
+		[FSTORE_3]        = opnop,
+		[DSTORE_0]        = opnop,
+		[DSTORE_1]        = opnop,
+		[DSTORE_2]        = opnop,
+		[DSTORE_3]        = opnop,
+		[ASTORE_0]        = opnop,
+		[ASTORE_1]        = opnop,
+		[ASTORE_2]        = opnop,
+		[ASTORE_3]        = opnop,
+		[IASTORE]         = opnop,
+		[LASTORE]         = opnop,
+		[FASTORE]         = opnop,
+		[DASTORE]         = opnop,
+		[AASTORE]         = opnop,
+		[BASTORE]         = opnop,
+		[CASTORE]         = opnop,
+		[SASTORE]         = opnop,
+		[POP]             = opnop,
+		[POP2]            = opnop,
+		[DUP]             = opnop,
+		[DUP_X1]          = opnop,
+		[DUP_X2]          = opnop,
+		[DUP2]            = opnop,
+		[DUP2_X1]         = opnop,
+		[DUP2_X2]         = opnop,
+		[SWAP]            = opnop,
+		[IADD]            = opnop,
+		[LADD]            = opnop,
+		[FADD]            = opnop,
+		[DADD]            = opnop,
+		[ISUB]            = opnop,
+		[LSUB]            = opnop,
+		[FSUB]            = opnop,
+		[DSUB]            = opnop,
+		[IMUL]            = opnop,
+		[LMUL]            = opnop,
+		[FMUL]            = opnop,
+		[DMUL]            = opnop,
+		[IDIV]            = opnop,
+		[LDIV]            = opnop,
+		[FDIV]            = opnop,
+		[DDIV]            = opnop,
+		[IREM]            = opnop,
+		[LREM]            = opnop,
+		[FREM]            = opnop,
+		[DREM]            = opnop,
+		[INEG]            = opnop,
+		[LNEG]            = opnop,
+		[FNEG]            = opnop,
+		[DNEG]            = opnop,
+		[ISHL]            = opnop,
+		[LSHL]            = opnop,
+		[ISHR]            = opnop,
+		[LSHR]            = opnop,
+		[IUSHR]           = opnop,
+		[LUSHR]           = opnop,
+		[IAND]            = opnop,
+		[LAND]            = opnop,
+		[IOR]             = opnop,
+		[LOR]             = opnop,
+		[IXOR]            = opnop,
+		[LXOR]            = opnop,
+		[IINC]            = opnop,
+		[I2L]             = opnop,
+		[I2F]             = opnop,
+		[I2D]             = opnop,
+		[L2I]             = opnop,
+		[L2F]             = opnop,
+		[L2D]             = opnop,
+		[F2I]             = opnop,
+		[F2L]             = opnop,
+		[F2D]             = opnop,
+		[D2I]             = opnop,
+		[D2L]             = opnop,
+		[D2F]             = opnop,
+		[I2B]             = opnop,
+		[I2C]             = opnop,
+		[I2S]             = opnop,
+		[LCMP]            = opnop,
+		[FCMPL]           = opnop,
+		[FCMPG]           = opnop,
+		[DCMPL]           = opnop,
+		[DCMPG]           = opnop,
+		[IFEQ]            = opnop,
+		[IFNE]            = opnop,
+		[IFLT]            = opnop,
+		[IFGE]            = opnop,
+		[IFGT]            = opnop,
+		[IFLE]            = opnop,
+		[IF_ICMPEQ]       = opnop,
+		[IF_ICMPNE]       = opnop,
+		[IF_ICMPLT]       = opnop,
+		[IF_ICMPGE]       = opnop,
+		[IF_ICMPGT]       = opnop,
+		[IF_ICMPLE]       = opnop,
+		[IF_ACMPEQ]       = opnop,
+		[IF_ACMPNE]       = opnop,
+		[GOTO]            = opnop,
+		[JSR]             = opnop,
+		[RET]             = opnop,
+		[TABLESWITCH]     = opnop,
+		[LOOKUPSWITCH]    = opnop,
+		[IRETURN]         = opnop,
+		[LRETURN]         = opnop,
+		[FRETURN]         = opnop,
+		[DRETURN]         = opnop,
+		[ARETURN]         = opnop,
+		[RETURN]          = opreturn,
+		[GETSTATIC]       = opgetstatic,
+		[PUTSTATIC]       = opnop,
+		[GETFIELD]        = opnop,
+		[PUTFIELD]        = opnop,
+		[INVOKEVIRTUAL]   = opinvokevirtual,
+		[INVOKESPECIAL]   = opnop,
+		[INVOKESTATIC]    = opnop,
+		[INVOKEINTERFACE] = opnop,
+		[INVOKEDYNAMIC]   = opnop,
+		[NEW]             = opnop,
+		[NEWARRAY]        = opnop,
+		[ANEWARRAY]       = opnop,
+		[ARRAYLENGTH]     = opnop,
+		[ATHROW]          = opnop,
+		[CHECKCAST]       = opnop,
+		[INSTANCEOF]      = opnop,
+		[MONITORENTER]    = opnop,
+		[MONITOREXIT]     = opnop,
+		[WIDE]            = opnop,
+		[MULTIANEWARRAY]  = opnop,
+		[IFNULL]          = opnop,
+		[IFNONNULL]       = opnop,
+		[GOTO_W]          = opnop,
+		[JSR_W]           = opnop,
+	};
 	Attribute *cattr;       /* Code_attribute */
 	Code_attribute *code;
 	Frame *frame;
-	int ret = 0;
 
 	if ((cattr = class_getattr(method->attributes, method->attributes_count, Code)) == NULL)
 		err(EXIT_FAILURE, "could not find code for method");
 	code = &cattr->info.code;
 	if ((frame = frame_push(code, class)) == NULL)
 		err(EXIT_FAILURE, "out of memory");
-	while (frame->pc < code->code_length) {
-		switch (code->code[frame->pc++]) {
-		case GETSTATIC:         ret = opgetstatic(frame);       break;
-		case LDC:               ret = opldc(frame);             break;
-		case INVOKEVIRTUAL:     ret = opinvokevirtual(frame);   break;
-		case RETURN:            ret = opreturn(frame);          break;
-		default:                printf("ASDA\n");               break;
-		}
-		if (ret) {
+	while (frame->pc < code->code_length)
+		if ((*instrtab[code->code[frame->pc++]])(frame))
 			break;
-		}
-	}
 	frame_pop();
 }
 
