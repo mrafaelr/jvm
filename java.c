@@ -139,18 +139,15 @@ classload(char *classname)
 
 /* call method */
 void
-methodcall(ClassFile *class, char *name, char *descr, U2 access)
+methodcall(ClassFile *class, Method *method)
 {
 	Attribute *cattr;       /* Code_attribute */
 	Code_attribute *code;
-	Method *method;
 	Frame *frame;
 	U2 i;
 
-	if ((method = class_getmethod(class, name, descr)) == NULL || !(method->access_flags & access))
-		errx(EXIT_FAILURE, "could not find method %s in class %s", name, class_getclassname(class, class->this_class));
 	if ((cattr = class_getattr(method->attributes, method->attributes_count, Code)) == NULL)
-		err(EXIT_FAILURE, "could not find code for method %s", name);
+		err(EXIT_FAILURE, "could not find code for method");
 	code = &cattr->info.code;
 	if ((frame = frame_push(code, class)) == NULL)
 		err(EXIT_FAILURE, "out of memory");
@@ -159,11 +156,40 @@ methodcall(ClassFile *class, char *name, char *descr, U2 access)
 	frame_pop();
 }
 
-/* launches a java application */
+/* initialize class */
+void
+classinit(ClassFile *class)
+{
+	Method *method;
+
+	if (class->init)
+		return;
+	class->init = 1;
+	if (class->super)
+		classinit(class->super);
+	if ((method = class_getmethod(class, "<clinit>", "()V")) != NULL)
+		methodcall(class, method);
+}
+
+/* load and initialize main class, then call main method */
+void
+java(int argc, char *argv[])
+{
+	ClassFile *class;
+	Method *method;
+
+	(void)argc;
+	class = classload(argv[0]);
+	if ((method = class_getmethod(class, "main", "([Ljava/lang/String;)V")) == NULL || !(method->access_flags & (ACC_PUBLIC | ACC_STATIC)))
+		errx(EXIT_FAILURE, "could not find main method");
+	classinit(class);
+	methodcall(class, method);
+}
+
+/* java: launches a java application */
 int
 main(int argc, char *argv[])
 {
-	ClassFile *class;
 	char *cpath = NULL;
 	int i;
 
@@ -178,11 +204,12 @@ main(int argc, char *argv[])
 	}
 	if (i >= argc)
 		usage();
+	argc -= i;
+	argv += i;
 	if (cpath == NULL)
 		cpath = ".";
 	setclasspath(cpath);
 	atexit(classfree);
-	class = classload(argv[i]);
-	methodcall(class, "main", "([Ljava/lang/String;)V", ACC_PUBLIC | ACC_STATIC);
+	java(argc, argv);
 	return 0;
 }

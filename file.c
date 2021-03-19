@@ -820,6 +820,9 @@ file_read(FILE *fp, ClassFile *class)
 		errtag = ERR_MAGIC;
 		goto error;
 	}
+	class->init = 0;
+	class->next = NULL;
+	class->super = NULL;
 	class->minor_version = readu(fp, 2);
 	class->major_version = readu(fp, 2);
 	class->constant_pool_count = readu(fp, 2);

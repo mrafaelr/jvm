@@ -492,6 +492,7 @@ typedef struct LocalVariable {
 } LocalVariable;
 
 typedef struct ClassFile {
+	int               init;
 	struct ClassFile *next, *super;
 	U2                minor_version;
 	U2                major_version;
