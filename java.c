@@ -212,6 +212,19 @@ opgetstatic(Frame *frame)
 	return 0;
 }
 
+/* iadd: add int */
+int
+opiadd(Frame *frame)
+{
+	Value v1, v2;
+
+	v2.i = frame_stackpop(frame);
+	v1.i = frame_stackpop(frame);
+	v1.i += v2.i;
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
 /* invokevirtual: invoke instance method; dispatch based on class */
 int
 opinvokevirtual(Frame *frame)
@@ -354,7 +367,7 @@ methodcall(ClassFile *class, Method *method)
 		[DUP2_X1]         = opnop,
 		[DUP2_X2]         = opnop,
 		[SWAP]            = opnop,
-		[IADD]            = opnop,
+		[IADD]            = opiadd,
 		[LADD]            = opnop,
 		[FADD]            = opnop,
 		[DADD]            = opnop,
