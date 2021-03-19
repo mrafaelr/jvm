@@ -241,6 +241,21 @@ class_getclassname(ClassFile *class, U2 index)
 	return class_getutf8(class, class->constant_pool[index].info.class_info.name_index);
 }
 
+/* get string from string reference */
+char *
+class_getstring(ClassFile *class, U2 index)
+{
+	return class_getutf8(class, class->constant_pool[index].info.string_info.string_index);
+}
+
+/* get name and type of field or method */
+void
+class_getnameandtype(ClassFile *class, U2 index, char **name, char **type)
+{
+	*name = class_getutf8(class, class->constant_pool[index].info.nameandtype_info.name_index);
+	*type = class_getutf8(class, class->constant_pool[index].info.nameandtype_info.descriptor_index);
+}
+
 /* get method matching name and descriptor from class */
 Method *
 class_getmethod(ClassFile *class, char *name, char *descr)
@@ -251,6 +266,19 @@ class_getmethod(ClassFile *class, char *name, char *descr)
 		if (strcmp(name, class_getutf8(class, class->methods[i].name_index)) == 0 &&
 		    strcmp(descr, class_getutf8(class, class->methods[i].descriptor_index)) == 0)
 			return &class->methods[i];
+	return NULL;
+}
+
+/* get field matching name and descriptor from class */
+Field *
+class_getfield(ClassFile *class, char *name, char *descr)
+{
+	U2 i;
+
+	for (i = 0; i < class->fields_count; i++)
+		if (strcmp(name, class_getutf8(class, class->fields[i].name_index)) == 0 &&
+		    strcmp(descr, class_getutf8(class, class->fields[i].descriptor_index)) == 0)
+			return &class->fields[i];
 	return NULL;
 }
 

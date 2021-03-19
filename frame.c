@@ -23,9 +23,12 @@ frame_push(Code_attribute *code, ClassFile *class)
 		return NULL;
 	}
 	frame->pc = 0;
+	frame->code = code;
 	frame->class = class;
 	frame->local = local;
 	frame->stack = stack;
+	frame->nlocal = 0;
+	frame->nstack = 0;
 	frame->next = framestack;
 	framestack = frame;
 	return frame;
@@ -54,4 +57,18 @@ frame_del(void)
 	while (framestack) {
 		frame_pop();
 	}
+}
+
+/* push value onto frame's operand stack */
+void
+frame_stackpush(Frame *frame, Value value)
+{
+	frame->stack[frame->nstack++] = value;
+}
+
+/* push value onto frame's operand stack */
+Value
+frame_stackpop(Frame *frame)
+{
+	return frame->stack[--frame->nstack];
 }
