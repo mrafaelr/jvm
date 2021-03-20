@@ -713,6 +713,7 @@ printcode(Code_attribute *codeattr, U2 nargs)
 				i += 4;
 				break;
 			}
+			break;
 		case OP_LOOKUPSWITCH:
 			i++;
 			while (i % 4)
