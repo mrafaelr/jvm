@@ -253,7 +253,9 @@ typedef enum ConstantTag {
 	CONSTANT_MethodHandle       = 15,
 	CONSTANT_MethodType         = 16,
 	CONSTANT_InvokeDynamic      = 18,
-	CONSTANT_Constant           = 20        /* used to tag integers, longs, doubles, floats and strings */
+	CONSTANT_Constant           = 20,       /* used to tag integers, longs, doubles, floats and strings */
+	CONSTANT_U1                 = 21,       /* used to tag integers, floats and strings */
+	CONSTANT_U2                 = 22        /* used to tag longs and doubles */
 } ConstantTag;
 
 typedef enum FlagType {
@@ -516,6 +518,10 @@ Attribute *class_getattr(Attribute *attrs, U2 count, AttributeTag tag);
 char *class_getutf8(ClassFile *class, U2 index);
 char *class_getclassname(ClassFile *class, U2 index);
 char *class_getstring(ClassFile *class, U2 index);
+int32_t class_getinteger(ClassFile *class, U2 index);
+float class_getfloat(ClassFile *class, U2 index);
+int64_t class_getlong(ClassFile *class, U2 index);
+double class_getdouble(ClassFile *class, U2 index);
 void class_getnameandtype(ClassFile *class, U2 index, char **name, char **type);
 Method *class_getmethod(ClassFile *class, char *name, char *descr);
 Field *class_getfield(ClassFile *class, char *name, char *descr);

@@ -197,16 +197,37 @@ checkindex(CP *cp, U2 count, ConstantTag tag, U2 index)
 		errtag = ERR_INDEX;
 		longjmp(jmpenv, 1);
 	}
-	if (tag && ((tag == CONSTANT_Constant &&
-	            (cp[index].tag != CONSTANT_Integer &&
-	             cp[index].tag != CONSTANT_Float &&
-	             cp[index].tag != CONSTANT_Long &&
-	             cp[index].tag != CONSTANT_Double &&
-	             cp[index].tag != CONSTANT_String)) ||
-	            (tag != CONSTANT_Constant && cp[index].tag != tag))) {
-		errtag = ERR_CONSTANT;
-		longjmp(jmpenv, 1);
+	switch (tag) {
+	case CONSTANT_Untagged:
+		break;
+	case CONSTANT_Constant:
+		if (cp[index].tag != CONSTANT_Integer &&
+		    cp[index].tag != CONSTANT_Float &&
+		    cp[index].tag != CONSTANT_Long &&
+		    cp[index].tag != CONSTANT_Double &&
+		    cp[index].tag != CONSTANT_String)
+			goto error;
+		break;
+	case CONSTANT_U1:
+		if (cp[index].tag != CONSTANT_Integer &&
+		    cp[index].tag != CONSTANT_Float &&
+		    cp[index].tag != CONSTANT_String)
+			goto error;
+		break;
+	case CONSTANT_U2:
+		if (cp[index].tag != CONSTANT_Long &&
+		    cp[index].tag != CONSTANT_Double)
+			goto error;
+		break;
+	default:
+		if (cp[index].tag != tag)
+			goto error;
+		break;
 	}
+	return;
+error:
+	errtag = ERR_CONSTANT;
+	longjmp(jmpenv, 1);
 }
 
 /* check if index is points to a valid descriptor in the constant pool */
@@ -523,6 +544,20 @@ readcode(FILE *fp, ClassFile *class, U4 count)
 			break;
 		default:
 			switch (code[i]) {
+			case LDC:
+				code[++i] = readu(fp, 1);
+				checkindex(class->constant_pool, class->constant_pool_count, CONSTANT_U1, code[i]);
+				break;
+			case LDC_W:
+				code[++i] = readu(fp, 1);
+				code[++i] = readu(fp, 1);
+				checkindex(class->constant_pool, class->constant_pool_count, CONSTANT_U1, code[i - 1] << 8 | code[i]);
+				break;
+			case LDC2_W:
+				code[++i] = readu(fp, 1);
+				code[++i] = readu(fp, 1);
+				checkindex(class->constant_pool, class->constant_pool_count, CONSTANT_U2, code[i - 1] << 8 | code[i]);
+				break;
 			case GETSTATIC: case PUTSTATIC: case GETFIELD: case PUTFIELD:
 				code[++i] = readu(fp, 1);
 				code[++i] = readu(fp, 1);

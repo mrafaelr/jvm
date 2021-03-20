@@ -22,7 +22,7 @@ javap.o:  class.h util.h file.h
 file.o:   class.h util.h
 native.o: class.h frame.h native.h
 frame.o:  class.h frame.h
-class.o:  class.h
+class.o:  class.h util.h
 
 lint:
 	-${LINT} ${CPPFLAGS} ${LINTFLAGS} javap.c util.c class.c file.c

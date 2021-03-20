@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,34 +22,44 @@ setprogname(char *s)
 int32_t
 getint(uint32_t bytes)
 {
-	return *(int32_t *)(&bytes);
+	int32_t i;
+
+	memcpy(&i, &bytes, sizeof i);
+	return i;
 }
 
 /* get float from uint32_t */
 float
 getfloat(uint32_t bytes)
 {
-	return *(float *)(&bytes);
+	float f;
+
+	memcpy(&f, &bytes, sizeof f);
+	return f;
 }
 
 /* get int64_t from uint32_t */
 int64_t
 getlong(uint32_t high_bytes, uint32_t low_bytes)
 {
-	uint64_t l;
+	uint64_t u;
+	int64_t l;
 
-	l = ((uint64_t)high_bytes << 32) | (uint64_t)low_bytes;
-	return *(int64_t *)(&l);
+	u = ((uint64_t)high_bytes << 32) | (uint64_t)low_bytes;
+	memcpy(&l, &u, sizeof l);
+	return l;
 }
 
 /* get double from uint32_t */
 double
 getdouble(uint32_t high_bytes, uint32_t low_bytes)
 {
-	uint64_t l;
+	uint64_t u;
+	double d;
 
-	l = ((uint64_t)high_bytes << 32) | (uint64_t)low_bytes;
-	return *(double *)(&l);
+	u = ((uint64_t)high_bytes << 32) | (uint64_t)low_bytes;
+	memcpy(&d, &u, sizeof d);
+	return d;
 }
 
 /* print format error message with error string and exit */

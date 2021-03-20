@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include "util.h"
 #include "class.h"
 
 static int noperands[] = {
@@ -246,6 +247,36 @@ char *
 class_getstring(ClassFile *class, U2 index)
 {
 	return class_getutf8(class, class->constant_pool[index].info.string_info.string_index);
+}
+
+/* get int32_t from integer reference */
+int32_t
+class_getinteger(ClassFile *class, U2 index)
+{
+	return getint(class->constant_pool[index].info.integer_info.bytes);
+}
+
+/* get float from float reference */
+float
+class_getfloat(ClassFile *class, U2 index)
+{
+	return getfloat(class->constant_pool[index].info.integer_info.bytes);
+}
+
+/* get int64_t from long reference */
+int64_t
+class_getlong(ClassFile *class, U2 index)
+{
+	return getlong(class->constant_pool[index].info.long_info.high_bytes,
+	               class->constant_pool[index].info.long_info.low_bytes);
+}
+
+/* get double from double reference */
+double
+class_getdouble(ClassFile *class, U2 index)
+{
+	return getdouble(class->constant_pool[index].info.long_info.high_bytes,
+	                 class->constant_pool[index].info.long_info.low_bytes);
 }
 
 /* get name and type of field or method */

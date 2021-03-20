@@ -18,12 +18,10 @@ void
 natprintln(Frame *frame)
 {
 	Value vfp, vstr;
-	char *s;
 
 	vstr = frame_stackpop(frame);
 	vfp = frame_stackpop(frame);
-	s = class_getstring(frame->class, vstr.u);
-	fprintf((FILE *)vfp.v, "%s\n", s);
+	fprintf((FILE *)vfp.v, "%s\n", (char *)vstr.v);
 }
 
 JavaClass

@@ -155,6 +155,33 @@ classinit(ClassFile *class)
 		methodcall(class, method);
 }
 
+/* resolve constant reference */
+Value
+resolveconstant(ClassFile *class, U2 index)
+{
+	Value v;
+
+	v.i = 0;
+	switch (class->constant_pool[index].tag) {
+	case CONSTANT_Integer:
+		v.i = class_getinteger(class, index);
+		break;
+	case CONSTANT_Float:
+		v.f = class_getfloat(class, index);
+		break;
+	case CONSTANT_Long:
+		v.l = class_getlong(class, index);
+		break;
+	case CONSTANT_Double:
+		v.d = class_getdouble(class, index);
+		break;
+	case CONSTANT_String:
+		v.v = class_getstring(class, index);
+		break;
+	}
+	return v;
+}
+
 /* resolve field reference */
 Value
 resolvefield(ClassFile *class, CONSTANT_Fieldref_info *fieldref)
@@ -218,8 +245,8 @@ opiadd(Frame *frame)
 {
 	Value v1, v2;
 
-	v2.i = frame_stackpop(frame);
-	v1.i = frame_stackpop(frame);
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
 	v1.i += v2.i;
 	frame_stackpush(frame, v1);
 	return 0;
@@ -243,10 +270,40 @@ opinvokevirtual(Frame *frame)
 int
 opldc(Frame *frame)
 {
-	Value value;
+	Value v;
+	U2 i;
 
-	value.u = frame->code->code[frame->pc++];
-	frame_stackpush(frame, value);
+	i = frame->code->code[frame->pc++];
+	v = resolveconstant(frame->class, i);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* ldc_w: push item from run-time constant pool (wide index) */
+int
+opldc_w(Frame *frame)
+{
+	Value v;
+	U2 i;
+
+	i = frame->code->code[frame->pc++] << 8;
+	i |= frame->code->code[frame->pc++];
+	v = resolveconstant(frame->class, i);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* ldc2_w: push long or double from run-time constant pool (wide index) */
+int
+opldc2_w(Frame *frame)
+{
+	Value v;
+	U2 i;
+
+	i = frame->code->code[frame->pc++] << 8;
+	i |= frame->code->code[frame->pc++];
+	v = resolveconstant(frame->class, i);
+	frame_stackpush(frame, v);
 	return 0;
 }
 
@@ -290,8 +347,8 @@ methodcall(ClassFile *class, Method *method)
 		[BIPUSH]          = opnop,
 		[SIPUSH]          = opnop,
 		[LDC]             = opldc,
-		[LDC_W]           = opnop,
-		[LDC2_W]          = opnop,
+		[LDC_W]           = opldc_w,
+		[LDC2_W]          = opldc2_w,
 		[ILOAD]           = opnop,
 		[LLOAD]           = opnop,
 		[FLOAD]           = opnop,
@@ -518,6 +575,8 @@ main(int argc, char *argv[])
 			if (++i >= argc)
 				usage();
 			cpath = argv[i];
+		} else {
+			usage();
 		}
 	}
 	if (i >= argc)
