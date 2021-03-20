@@ -27,7 +27,6 @@ frame_push(Code_attribute *code, ClassFile *class)
 	frame->class = class;
 	frame->local = local;
 	frame->stack = stack;
-	frame->nlocal = 0;
 	frame->nstack = 0;
 	frame->next = framestack;
 	framestack = frame;
@@ -71,4 +70,18 @@ Value
 frame_stackpop(Frame *frame)
 {
 	return frame->stack[--frame->nstack];
+}
+
+/* store value into local variable array */
+void
+frame_localstore(Frame *frame, U2 i, Value v)
+{
+	frame->local[i] = v;
+}
+
+/* get value from local variable array */
+Value
+frame_localload(Frame *frame, U2 i)
+{
+	return frame->local[i];
 }

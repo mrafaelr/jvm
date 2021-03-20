@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -223,19 +224,215 @@ resolvemethod(Frame *frame, ClassFile *class, CONSTANT_Methodref_info *methodref
 	}
 }
 
+/* dadd: add double */
+int
+opdadd(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.d += v2.d;
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* ddiv: divide double */
+int
+opddiv(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.d /= v2.d;
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* dmul: multiply double */
+int
+opdmul(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.d *= v2.d;
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* dneg: negate double */
+int
+opdneg(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	v.d = -v.d;
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* drem: remainder double */
+int
+opdrem(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.d = fmod(v1.d, v2.d);
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* dsub: subtract double */
+int
+opdsub(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.d -= v2.d;
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* dload: load double from local variable */
+int
+opdload(Frame *frame)
+{
+	Value v;
+	U2 i;
+
+	i = frame->code->code[frame->pc++];
+	v = frame_localload(frame, i);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* dload_0: load double from local variable */
+int
+opdload_0(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 0);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* dload_1: load double from local variable */
+int
+opdload_1(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 1);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* dload_2: load double from local variable */
+int
+opdload_2(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 2);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* dload_3: load double from local variable */
+int
+opdload_3(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 3);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* dstore: store double into local variable */
+int
+opdstore(Frame *frame)
+{
+	Value v;
+	U2 i;
+
+	i = frame->code->code[frame->pc++];
+	v = frame_stackpop(frame);
+	frame_localstore(frame, i, v);
+	frame_localstore(frame, i + 1, v);
+	return 0;
+}
+
+/* dstore_0: store double into local variable */
+int
+opdstore_0(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 0, v);
+	frame_localstore(frame, 1, v);
+	return 0;
+}
+
+/* dstore_1: store double into local variable */
+int
+opdstore_1(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 1, v);
+	frame_localstore(frame, 2, v);
+	return 0;
+}
+
+/* dstore_2: store double into local variable */
+int
+opdstore_2(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 2, v);
+	frame_localstore(frame, 3, v);
+	return 0;
+}
+
+/* dstore_3: store double into local variable */
+int
+opdstore_3(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 3, v);
+	frame_localstore(frame, 4, v);
+	return 0;
+}
+
 /* getstatic: get static field from class */
 int
 opgetstatic(Frame *frame)
 {
 	CONSTANT_Fieldref_info *fieldref;
-	Value value;
+	Value v;
 	U2 i;
 
 	i = frame->code->code[frame->pc++] << 8;
 	i |= frame->code->code[frame->pc++];
 	fieldref = &frame->class->constant_pool[i].info.fieldref_info;
-	value = resolvefield(frame->class, fieldref);
-	frame_stackpush(frame, value);
+	v = resolvefield(frame->class, fieldref);
+	frame_stackpush(frame, v);
 	return 0;
 }
 
@@ -352,7 +549,7 @@ methodcall(ClassFile *class, Method *method)
 		[ILOAD]           = opnop,
 		[LLOAD]           = opnop,
 		[FLOAD]           = opnop,
-		[DLOAD]           = opnop,
+		[DLOAD]           = opdload,
 		[ALOAD]           = opnop,
 		[ILOAD_0]         = opnop,
 		[ILOAD_1]         = opnop,
@@ -366,10 +563,10 @@ methodcall(ClassFile *class, Method *method)
 		[FLOAD_1]         = opnop,
 		[FLOAD_2]         = opnop,
 		[FLOAD_3]         = opnop,
-		[DLOAD_0]         = opnop,
-		[DLOAD_1]         = opnop,
-		[DLOAD_2]         = opnop,
-		[DLOAD_3]         = opnop,
+		[DLOAD_0]         = opdload_0,
+		[DLOAD_1]         = opdload_1,
+		[DLOAD_2]         = opdload_2,
+		[DLOAD_3]         = opdload_3,
 		[ALOAD_0]         = opnop,
 		[ALOAD_1]         = opnop,
 		[ALOAD_2]         = opnop,
@@ -385,7 +582,7 @@ methodcall(ClassFile *class, Method *method)
 		[ISTORE]          = opnop,
 		[LSTORE]          = opnop,
 		[FSTORE]          = opnop,
-		[DSTORE]          = opnop,
+		[DSTORE]          = opdstore,
 		[ASTORE]          = opnop,
 		[ISTORE_0]        = opnop,
 		[ISTORE_1]        = opnop,
@@ -399,10 +596,10 @@ methodcall(ClassFile *class, Method *method)
 		[FSTORE_1]        = opnop,
 		[FSTORE_2]        = opnop,
 		[FSTORE_3]        = opnop,
-		[DSTORE_0]        = opnop,
-		[DSTORE_1]        = opnop,
-		[DSTORE_2]        = opnop,
-		[DSTORE_3]        = opnop,
+		[DSTORE_0]        = opdstore_0,
+		[DSTORE_1]        = opdstore_1,
+		[DSTORE_2]        = opdstore_2,
+		[DSTORE_3]        = opdstore_3,
 		[ASTORE_0]        = opnop,
 		[ASTORE_1]        = opnop,
 		[ASTORE_2]        = opnop,
@@ -427,27 +624,27 @@ methodcall(ClassFile *class, Method *method)
 		[IADD]            = opiadd,
 		[LADD]            = opnop,
 		[FADD]            = opnop,
-		[DADD]            = opnop,
+		[DADD]            = opdadd,
 		[ISUB]            = opnop,
 		[LSUB]            = opnop,
 		[FSUB]            = opnop,
-		[DSUB]            = opnop,
+		[DSUB]            = opdsub,
 		[IMUL]            = opnop,
 		[LMUL]            = opnop,
 		[FMUL]            = opnop,
-		[DMUL]            = opnop,
+		[DMUL]            = opdmul,
 		[IDIV]            = opnop,
 		[LDIV]            = opnop,
 		[FDIV]            = opnop,
-		[DDIV]            = opnop,
+		[DDIV]            = opddiv,
 		[IREM]            = opnop,
 		[LREM]            = opnop,
 		[FREM]            = opnop,
-		[DREM]            = opnop,
+		[DREM]            = opdrem,
 		[INEG]            = opnop,
 		[LNEG]            = opnop,
 		[FNEG]            = opnop,
-		[DNEG]            = opnop,
+		[DNEG]            = opdneg,
 		[ISHL]            = opnop,
 		[LSHL]            = opnop,
 		[ISHR]            = opnop,
