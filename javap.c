@@ -293,6 +293,7 @@ printcp(ClassFile *class)
 {
 	CP *cp;
 	U2 count, i;
+	char *name, *type;
 	int d, n;
 
 	printf("Constant pool:\n");
@@ -346,20 +347,35 @@ printcp(ClassFile *class)
 			printf("// %s", class_getutf8(class, cp[i].info.string_info.string_index));
 			break;
 		case CONSTANT_Fieldref:
-			printf("#%u", cp[i].info.fieldref_info.class_index);
-			printf(".#%u", cp[i].info.fieldref_info.name_and_type_index);
+			n = printf("#%u.#%u", cp[i].info.fieldref_info.class_index,
+			           cp[i].info.fieldref_info.name_and_type_index);
+			n = (n > 0 && n < 14) ? 14 - n : 0;
+			while (n--)
+				putchar(' ');
+			class_getnameandtype(class, cp[i].info.fieldref_info.name_and_type_index, &name, &type);
+			printf("// %s.%s:%s", class_getclassname(class, cp[i].info.fieldref_info.class_index), name, type);
 			break;
 		case CONSTANT_Methodref:
-			printf("#%u", cp[i].info.methodref_info.class_index);
-			printf(".#%u", cp[i].info.methodref_info.name_and_type_index);
+			n = printf("#%u.#%u", cp[i].info.methodref_info.class_index,
+			           cp[i].info.methodref_info.name_and_type_index);
+			n = (n > 0 && n < 14) ? 14 - n : 0;
+			while (n--)
+				putchar(' ');
+			class_getnameandtype(class, cp[i].info.methodref_info.name_and_type_index, &name, &type);
+			printf("// %s.%s:%s", class_getclassname(class, cp[i].info.methodref_info.class_index), name, type);
 			break;
 		case CONSTANT_InterfaceMethodref:
 			printf("#%u", cp[i].info.interfacemethodref_info.class_index);
 			printf(".#%u", cp[i].info.interfacemethodref_info.name_and_type_index);
 			break;
 		case CONSTANT_NameAndType:
-			printf("#%u", cp[i].info.nameandtype_info.name_index);
-			printf(":#%u", cp[i].info.nameandtype_info.descriptor_index);
+			n = printf("#%u:#%u", cp[i].info.nameandtype_info.name_index,
+			           cp[i].info.nameandtype_info.descriptor_index);
+			n = (n > 0 && n < 14) ? 14 - n : 0;
+			while (n--)
+				putchar(' ');
+			class_getnameandtype(class, i, &name, &type);
+			printf("// %s:%s", name, type);
 			break;
 		case CONSTANT_MethodHandle:
 			printf("%u", cp[i].info.methodhandle_info.reference_kind);
