@@ -674,7 +674,7 @@ printlocalvars(ClassFile *class, LocalVariableTable_attribute *lvattr)
 static void
 printcode(Code_attribute *codeattr, U2 nargs)
 {
-	int32_t j, npairs, high, low;
+	int32_t j, npairs, def, high, low, n;
 	U1 *code;
 	U1 opcode;
 	U4 count;
@@ -692,7 +692,7 @@ printcode(Code_attribute *codeattr, U2 nargs)
 		opcode = code[i];
 		if (verbose)
 			printf("  ");
-		printf("%8u: %s\n", i, instrnames[opcode]);
+		printf("%8u: %s", i, instrnames[opcode]);
 		switch (class_getnoperands(code[i])) {
 		case OP_WIDE:
 			switch (code[i]) {
@@ -731,7 +731,11 @@ printcode(Code_attribute *codeattr, U2 nargs)
 			i++;
 			while (i % 4)
 				i++;
-			i += 4;
+			a = code[i++];
+			b = code[i++];
+			c = code[i++];
+			d = code[i++];
+			def = (a << 24) | (b << 16) | (c << 8) | d;
 			a = code[i++];
 			b = code[i++];
 			c = code[i++];
@@ -740,16 +744,27 @@ printcode(Code_attribute *codeattr, U2 nargs)
 			a = code[i++];
 			b = code[i++];
 			c = code[i++];
-			d = code[i];
+			d = code[i++];
 			high = (a << 24) | (b << 16) | (c << 8) | d;
-			for (j = 0; j < high - low + 1; j++)
-				i += 4;
+			printf("   {  // %d to %d\n", low, high);
+			for (j = 0; j < high - low + 1; j++) {
+				a = code[i++];
+				b = code[i++];
+				c = code[i++];
+				d = code[i++];
+				n = (a << 24) | (b << 16) | (c << 8) | d;
+				printf("%24d: %d\n", j, n);
+			}
+			i--;
+			printf("                 default: %d\n", def);
+			printf("            }");
 			break;
 		default:
 			for (j = 0; i < count && j < class_getnoperands(opcode); j++)
 				i++;
 			break;
 		}
+		printf("\n");
 	}
 }
 
