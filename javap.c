@@ -753,10 +753,10 @@ printcode(Code_attribute *codeattr, U2 nargs)
 				c = code[i++];
 				d = code[i++];
 				n = (a << 24) | (b << 16) | (c << 8) | d;
-				printf("%24d: %d\n", j, n);
+				printf("%24d: %d\n", j, n + 1);
 			}
 			i--;
-			printf("                 default: %d\n", def);
+			printf("                 default: %d\n", def + 1);
 			printf("            }");
 			break;
 		default:
