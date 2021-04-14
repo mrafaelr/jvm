@@ -24,7 +24,7 @@ natprintln(Frame *frame, char *type)
 	if (strcmp(type, "(Ljava/lang/String;)V") == 0)
 		fprintf((FILE *)vfp.v, "%s\n", (char *)v.v);
 	else if (strcmp(type, "(B)V") == 0)
-		fprintf((FILE *)vfp.v, "%c\n", v.b);
+		fprintf((FILE *)vfp.v, "%d\n", v.i);
 	else if (strcmp(type, "(C)V") == 0)
 		fprintf((FILE *)vfp.v, "%c\n", v.i);
 	else if (strcmp(type, "(D)V") == 0)
@@ -36,7 +36,7 @@ natprintln(Frame *frame, char *type)
 	else if (strcmp(type, "(J)V") == 0)
 		fprintf((FILE *)vfp.v, "%lld\n", v.l);
 	else if (strcmp(type, "(S)V") == 0)
-		fprintf((FILE *)vfp.v, "%d\n", v.s);
+		fprintf((FILE *)vfp.v, "%d\n", v.i);
 	else if (strcmp(type, "(Z)V") == 0)
 		fprintf((FILE *)vfp.v, "%d\n", v.i);
 }

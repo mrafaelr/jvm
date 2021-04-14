@@ -1,9 +1,6 @@
 /* local variable or operand structure */
 typedef union Value {
 	U2      u;
-	uint8_t b;
-	char    c;
-	int16_t s;
 	int32_t i;
 	int64_t l;
 	float   f;

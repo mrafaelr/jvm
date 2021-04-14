@@ -1181,6 +1181,17 @@ opdconst_1(Frame *frame)
 	return 0;
 }
 
+/* bipush: push byte */
+int
+opbipush(Frame *frame)
+{
+	Value v;
+
+	v.i = frame->code->code[frame->pc++];
+	frame_stackpush(frame, v);
+	return 0;
+}
+
 /*____________________________________________________________________________________________________________________*/
 
 /*________________________________________________________pop____________________________________________________________*/
@@ -1463,7 +1474,7 @@ methodcall(ClassFile *class, Method *method)
 		[FCONST_2]        = opfconst_2,
 		[DCONST_0]        = opdconst_0,
 		[DCONST_1]        = opdconst_1,
-		[BIPUSH]          = opnop,
+		[BIPUSH]          = opbipush,
 		[SIPUSH]          = opnop,
 		[LDC]             = opldc,
 		[LDC_W]           = opldc_w,
