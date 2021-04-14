@@ -449,6 +449,928 @@ opiadd(Frame *frame)
 	return 0;
 }
 
+/* _______________________________________________ int ___________________________________________________________________*/
+
+/* idiv: divide int */
+int
+opidiv(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.i /= v2.i;
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* imul: multiply int */
+int
+opimul(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.i *= v2.i;
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* ineg: negate int */
+int
+opineg(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	v.i = -v.i;
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* irem: remainder int */
+int
+opirem(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.d = fmod(v1.i, v2.i);
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* isub: subtract int */
+int
+opisub(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.i -= v2.i;
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* iload: load int from local variable */
+int
+opiload(Frame *frame)
+{
+	Value v;
+	U2 i;
+
+	i = frame->code->code[frame->pc++];
+	v = frame_localload(frame, i);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* iload_0: load double from local variable */
+int
+opiload_0(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 0);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* iload_1: load int from local variable */
+int
+opiload_1(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 1);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* iload_2: load int from local variable */
+int
+opiload_2(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 2);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* iload_3: load int from local variable */
+int
+opiload_3(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 3);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* istore: store int into local variable */
+int
+opistore(Frame *frame)
+{
+	Value v;
+	U2 i;
+
+	i = frame->code->code[frame->pc++];
+	v = frame_stackpop(frame);
+	frame_localstore(frame, i, v);
+	return 0;
+}
+
+/* istore_0: store int into local variable */
+int
+opistore_0(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 0, v);
+	return 0;
+}
+
+/* istore_1: store int into local variable */
+int
+opistore_1(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 1, v);
+	return 0;
+}
+
+/* istore_2: store int into local variable */
+int
+opistore_2(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 2, v);
+	return 0;
+}
+
+/* istore_3: store int into local variable */
+int
+opistore_3(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 3, v);
+	return 0;
+}
+/*_______________________________________________________________________________________________________________*/
+
+/* _______________________________________________ float ___________________________________________________________________*/
+
+/* fadd: add float */
+int
+opfadd(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.f += v2.f;
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* fdiv: divide float */
+int
+opfdiv(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.f /= v2.f;
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* fmul: multiply float */
+int
+opfmul(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.f *= v2.f;
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* fneg: negate float */
+int
+opfneg(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	v.f = -v.f;
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* frem: remainder float */
+int
+opfrem(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.d = fmod(v1.f, v2.f);
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* fsub: subtract float */
+int
+opfsub(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.f -= v2.f;
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* fload: load float from local variable */
+int
+opfload(Frame *frame)
+{
+	Value v;
+	U2 i;
+
+	i = frame->code->code[frame->pc++];
+	v = frame_localload(frame, i);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* fload_0: load float from local variable */
+int
+opfload_0(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 0);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* fload_1: load float from local variable */
+int
+opfload_1(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 1);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* fload_2: load float from local variable */
+int
+opfload_2(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 2);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* fload_3: load float from local variable */
+int
+opfload_3(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 3);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* fstore: store float into local variable */
+int
+opfstore(Frame *frame)
+{
+	Value v;
+	U2 i;
+
+	i = frame->code->code[frame->pc++];
+	v = frame_stackpop(frame);
+	frame_localstore(frame, i, v);
+	return 0;
+}
+
+/* fstore_0: store float into local variable */
+int
+opfstore_0(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 0, v);
+	return 0;
+}
+
+/* fstore_1: store float into local variable */
+int
+opfstore_1(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 1, v);
+	return 0;
+}
+
+/* istore_2: store float into local variable */
+int
+opfstore_2(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 2, v);
+	return 0;
+}
+
+/* fstore_3: store float into local variable */
+int
+opfstore_3(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 3, v);
+	return 0;
+}
+
+/*_______________________________________________________________________________________________________________*/
+
+/* _______________________________________________ long ___________________________________________________________________*/
+
+/* ladd: add long */
+int
+opladd(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.l += v2.l;
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* ldiv: divide long */
+int
+opldiv(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.l /= v2.l;
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* lmul: multiply long */
+int
+oplmul(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.l *= v2.l;
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* lneg: negate long */
+int
+oplneg(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	v.l = -v.l;
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* lrem: remainder long */
+int
+oplrem(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.l = fmod(v1.l, v2.l);
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* lsub: subtract long */
+int
+oplsub(Frame *frame)
+{
+	Value v1, v2;
+
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	v1.l -= v2.l;
+	frame_stackpush(frame, v1);
+	return 0;
+}
+
+/* lload: load long from local variable */
+int
+oplload(Frame *frame)
+{
+	Value v;
+	U2 i;
+
+	i = frame->code->code[frame->pc++];
+	v = frame_localload(frame, i);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* lload_0: load long from local variable */
+int
+oplload_0(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 0);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* lload_1: load long from local variable */
+int
+oplload_1(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 1);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* lload_2: load long from local variable */
+int
+oplload_2(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 2);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* lload_3: load long from local variable */
+int
+oplload_3(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 3);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* lstore: store long into local variable */
+int
+oplstore(Frame *frame)
+{
+	Value v;
+	U2 i;
+
+	i = frame->code->code[frame->pc++];
+	v = frame_stackpop(frame);
+	frame_localstore(frame, i, v);
+	frame_localstore(frame, i + 1, v);
+	return 0;
+}
+
+/* lstore_0: store long into local variable */
+int
+oplstore_0(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 0, v);
+	frame_localstore(frame, 1, v);
+	return 0;
+}
+
+/* lstore_1: store long into local variable */
+int
+oplstore_1(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 1, v);
+	frame_localstore(frame, 2, v);
+	return 0;
+}
+
+/* lstore_2: store long into local variable */
+int
+oplstore_2(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 2, v);
+	frame_localstore(frame, 3, v);
+	return 0;
+}
+
+/* lstore_3: store long into local variable */
+int
+oplstore_3(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 3, v);
+	frame_localstore(frame, 4, v);
+	return 0;
+}
+
+/*____________________________________________________________________________________________________________________*/
+
+/*____________________________________________________ const ________________________________________________________________*/
+
+/* iconst_m1: push int -1 into stack */
+int
+opiconst_m1(Frame *frame)
+{
+	Value v;
+
+	v.i = (-1);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* iconst_0: push int 0 into stack */
+int
+opiconst_0(Frame *frame)
+{
+	Value v;
+
+	v.i = 0;
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* iconst_1: push int 1 into stack */
+int
+opiconst_1(Frame *frame)
+{
+	Value v;
+
+	v.i = 1;
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* iconst_2: push int 2 into stack */
+int
+opiconst_2(Frame *frame)
+{
+	Value v;
+
+	v.i = 2;
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* iconst_3: push int 3 into stack */
+int
+opiconst_3(Frame *frame)
+{
+	Value v;
+
+	v.i = 3;
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* iconst_4: push int 4 into stack */
+int
+opiconst_4(Frame *frame)
+{
+	Value v;
+
+	v.i = 4;
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* iconst_5: push int 5 into stack */
+int
+opiconst_5(Frame *frame)
+{
+	Value v;
+
+	v.i = 5;
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* lconst_0: push long 0 into stack */
+int
+oplconst_0(Frame *frame)
+{
+	Value v;
+
+	v.l = 0;
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* lconst_1: push long 1 into stack */
+int
+oplconst_1(Frame *frame)
+{
+	Value v;
+
+	v.l = 1;
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* fconst_0: push float 0 into stack */
+int
+opfconst_0(Frame *frame)
+{
+	Value v;
+
+	v.f = 0.0;
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* fconst_1: push float 1 into stack */
+int
+opfconst_1(Frame *frame)
+{
+	Value v;
+
+	v.f = 1.0;
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* fconst_2: push float 2 into stack */
+int
+opfconst_2(Frame *frame)
+{
+	Value v;
+
+	v.f = 2.0;
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* dconst_0: push double 0 into stack */
+int
+opdconst_0(Frame *frame)
+{
+	Value v;
+
+	v.d = 0.0;
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* dconst_1: push double 1 into stack */
+int
+opdconst_1(Frame *frame)
+{
+	Value v;
+
+	v.d = 1.0;
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/*____________________________________________________________________________________________________________________*/
+
+/*________________________________________________________pop____________________________________________________________*/
+
+int
+oppop(Frame *frame)
+{
+	Value v;
+	v = frame_stackpop(frame);
+	if (v.d || v.l) {
+		frame_stackpush(frame, v);
+		return 1; /*Needs to throw exception!!*/
+	}
+	return 0;   
+}
+
+int
+oppop2(Frame *frame)
+{
+	frame_stackpop(frame);
+	return 0;   
+}
+
+/*____________________________________________________________________________________________________________________*/
+
+/*________________________________________________________dup____________________________________________________________*/
+
+int
+opdup(Frame *frame)
+{
+	Value v;
+	v = frame_stackpop(frame);
+	if (v.d || v.l) {
+		frame_stackpush(frame, v);
+		return 1; /*Needs to throw exception!!*/
+	}
+	frame_stackpush(frame, v);
+	frame_stackpush(frame, v);
+	return 0;   
+}
+
+int
+opdup_x1(Frame *frame)
+{
+	Value v1, v2;
+	v1 = frame_stackpop(frame);
+	v2 = frame_stackpop(frame);
+	if ((v1.d || v1.l) || (v2.d || v2.l)) {
+		frame_stackpush(frame, v2);
+		frame_stackpush(frame, v1);
+		return 1; /*Needs to throw exception!!*/
+	}
+	frame_stackpush(frame, v2);
+	frame_stackpush(frame, v1);
+	frame_stackpush(frame, v2);
+	frame_stackpush(frame, v1);
+	return 0;   
+}
+
+int
+opdup_x2(Frame *frame)
+{
+	Value v1, v2, v3;
+	v1 = frame_stackpop(frame);
+	v2 = frame_stackpop(frame);
+	v3 = frame_stackpop(frame);
+	if (((v1.d || v1.l) || (v2.d || v2.l) || (v3.d || v3.l))) {
+		frame_stackpush(frame, v3);
+		frame_stackpush(frame, v2);
+		frame_stackpush(frame, v1);
+		frame_stackpush(frame, v2);
+		frame_stackpush(frame, v1);
+	}
+	frame_stackpush(frame, v3);
+	frame_stackpush(frame, v2);
+	frame_stackpush(frame, v1);
+	frame_stackpush(frame, v3);
+	frame_stackpush(frame, v2);
+	frame_stackpush(frame, v1);
+	return 0;   
+}
+
+int
+opdup2(Frame *frame)
+{
+	Value v1, v2;
+	v1 = frame_stackpop(frame);
+	v2 = frame_stackpop(frame);
+	if (v1.d || v2.l) {
+		frame_stackpush(frame, v1);
+		frame_stackpush(frame, v2);
+		frame_stackpush(frame, v1);
+	}
+	frame_stackpush(frame, v2);
+	frame_stackpush(frame, v1);
+	frame_stackpush(frame, v2);
+	frame_stackpush(frame, v1);
+	return 0;   
+}
+
+int
+opdup2_x1(Frame *frame)
+{
+	Value v1, v2, v3;
+	v1 = frame_stackpop(frame);
+	v2 = frame_stackpop(frame);
+	v3 = frame_stackpop(frame);
+	if (((v1.d || v1.l) || (v2.d || v2.l) || (v3.d || v3.l))) {
+		frame_stackpush(frame, v3);
+		frame_stackpush(frame, v2);
+		frame_stackpush(frame, v1);
+		frame_stackpush(frame, v2);
+		frame_stackpush(frame, v1);
+	}
+	frame_stackpush(frame, v3);
+	frame_stackpush(frame, v2);
+	frame_stackpush(frame, v1);
+	frame_stackpush(frame, v3);
+	frame_stackpush(frame, v2);
+	frame_stackpush(frame, v1);
+	return 0; 
+}
+
+int
+opdup2_x2(Frame *frame)
+{
+	Value v1, v2, v3, v4;
+	v1 = frame_stackpop(frame);
+	v2 = frame_stackpop(frame);
+	v3 = frame_stackpop(frame);
+	v4 = frame_stackpop(frame);
+	
+	if (((v1.d || v1.l) && (v2.d || v2.l) && (v3.d || v3.l))) {
+		frame_stackpush(frame, v4);
+		frame_stackpush(frame, v3);
+		frame_stackpush(frame, v2);
+		frame_stackpush(frame, v1);
+		frame_stackpush(frame, v2);
+		frame_stackpush(frame, v1);
+		return 0;
+	}
+	else if ((v1.d || v1.l)){
+		frame_stackpush(frame, v4);
+		frame_stackpush(frame, v3);
+		frame_stackpush(frame, v2);
+		frame_stackpush(frame, v1);
+		frame_stackpush(frame, v3);
+		frame_stackpush(frame, v2);
+		frame_stackpush(frame, v1);
+		return 0;
+		
+	}
+	else if ((v3.d || v3.l)){
+		frame_stackpush(frame, v4);
+		frame_stackpush(frame, v3);
+		frame_stackpush(frame, v2);
+		frame_stackpush(frame, v1);
+		frame_stackpush(frame, v3);
+		frame_stackpush(frame, v2);
+		frame_stackpush(frame, v1);
+		return 0;
+		
+	} else if ((!(v1.d || v1.l) && !(v2.d || v2.l) && !(v3.d || v3.l))){
+	
+		frame_stackpush(frame, v4);
+		frame_stackpush(frame, v3);
+		frame_stackpush(frame, v2);
+		frame_stackpush(frame, v1);
+		frame_stackpush(frame, v4);
+		frame_stackpush(frame, v3);
+		frame_stackpush(frame, v2);
+		frame_stackpush(frame, v1);
+		return 0;
+	} else {
+		frame_stackpush(frame, v4);
+		frame_stackpush(frame, v3);
+		frame_stackpush(frame, v2);
+		frame_stackpush(frame, v1);
+		return 1; /*Needs to throw exception*/
+	}
+}
+
+
+/*____________________________________________________________________________________________________________________*/
+
+/*____________________________________________________________________________________________________________________*/
+
+/*____________________________________________________________________________________________________________________*/
+
+
 /* invokevirtual: invoke instance method; dispatch based on class */
 int
 opinvokevirtual(Frame *frame)
@@ -527,42 +1449,42 @@ methodcall(ClassFile *class, Method *method)
 	static int(*instrtab[])(Frame *) = {
 		[NOP]             = opnop,
 		[ACONST_NULL]     = opnop,
-		[ICONST_M1]       = opnop,
-		[ICONST_0]        = opnop,
-		[ICONST_1]        = opnop,
-		[ICONST_2]        = opnop,
-		[ICONST_3]        = opnop,
-		[ICONST_4]        = opnop,
-		[ICONST_5]        = opnop,
-		[LCONST_0]        = opnop,
-		[LCONST_1]        = opnop,
-		[FCONST_0]        = opnop,
-		[FCONST_1]        = opnop,
-		[FCONST_2]        = opnop,
-		[DCONST_0]        = opnop,
-		[DCONST_1]        = opnop,
+		[ICONST_M1]       = opiconst_m1,
+		[ICONST_0]        = opiconst_0,
+		[ICONST_1]        = opiconst_1,
+		[ICONST_2]        = opiconst_2,
+		[ICONST_3]        = opiconst_3,
+		[ICONST_4]        = opiconst_4,
+		[ICONST_5]        = opiconst_5,
+		[LCONST_0]        = oplconst_0,
+		[LCONST_1]        = oplconst_1,
+		[FCONST_0]        = opfconst_0,
+		[FCONST_1]        = opfconst_1,
+		[FCONST_2]        = opfconst_2,
+		[DCONST_0]        = opdconst_0,
+		[DCONST_1]        = opdconst_1,
 		[BIPUSH]          = opnop,
 		[SIPUSH]          = opnop,
 		[LDC]             = opldc,
 		[LDC_W]           = opldc_w,
 		[LDC2_W]          = opldc2_w,
-		[ILOAD]           = opnop,
-		[LLOAD]           = opnop,
-		[FLOAD]           = opnop,
+		[ILOAD]           = opiload,
+		[LLOAD]           = oplload,
+		[FLOAD]           = opfload,
 		[DLOAD]           = opdload,
 		[ALOAD]           = opnop,
-		[ILOAD_0]         = opnop,
-		[ILOAD_1]         = opnop,
-		[ILOAD_2]         = opnop,
-		[ILOAD_3]         = opnop,
-		[LLOAD_0]         = opnop,
-		[LLOAD_1]         = opnop,
-		[LLOAD_2]         = opnop,
-		[LLOAD_3]         = opnop,
-		[FLOAD_0]         = opnop,
-		[FLOAD_1]         = opnop,
-		[FLOAD_2]         = opnop,
-		[FLOAD_3]         = opnop,
+		[ILOAD_0]         = opiload_0,
+		[ILOAD_1]         = opiload_1,
+		[ILOAD_2]         = opiload_2,
+		[ILOAD_3]         = opiload_3,
+		[LLOAD_0]         = oplload_0,
+		[LLOAD_1]         = oplload_1,
+		[LLOAD_2]         = oplload_2,
+		[LLOAD_3]         = oplload_3,
+		[FLOAD_0]         = opfload_0,
+		[FLOAD_1]         = opfload_1,
+		[FLOAD_2]         = opfload_2,
+		[FLOAD_3]         = opfload_3,
 		[DLOAD_0]         = opdload_0,
 		[DLOAD_1]         = opdload_1,
 		[DLOAD_2]         = opdload_2,
@@ -579,23 +1501,23 @@ methodcall(ClassFile *class, Method *method)
 		[BALOAD]          = opnop,
 		[CALOAD]          = opnop,
 		[SALOAD]          = opnop,
-		[ISTORE]          = opnop,
-		[LSTORE]          = opnop,
-		[FSTORE]          = opnop,
+		[ISTORE]          = opistore,
+		[LSTORE]          = oplstore,
+		[FSTORE]          = opfstore,
 		[DSTORE]          = opdstore,
 		[ASTORE]          = opnop,
-		[ISTORE_0]        = opnop,
-		[ISTORE_1]        = opnop,
-		[ISTORE_2]        = opnop,
-		[ISTORE_3]        = opnop,
-		[LSTORE_0]        = opnop,
-		[LSTORE_1]        = opnop,
-		[LSTORE_2]        = opnop,
-		[LSTORE_3]        = opnop,
-		[FSTORE_0]        = opnop,
-		[FSTORE_1]        = opnop,
-		[FSTORE_2]        = opnop,
-		[FSTORE_3]        = opnop,
+		[ISTORE_0]        = opistore_0,
+		[ISTORE_1]        = opistore_1,
+		[ISTORE_2]        = opistore_2,
+		[ISTORE_3]        = opistore_3,
+		[LSTORE_0]        = oplstore_0,
+		[LSTORE_1]        = oplstore_1,
+		[LSTORE_2]        = oplstore_2,
+		[LSTORE_3]        = oplstore_3,
+		[FSTORE_0]        = opfstore_0,
+		[FSTORE_1]        = opfstore_1,
+		[FSTORE_2]        = opfstore_2,
+		[FSTORE_3]        = opfstore_3,
 		[DSTORE_0]        = opdstore_0,
 		[DSTORE_1]        = opdstore_1,
 		[DSTORE_2]        = opdstore_2,
@@ -612,38 +1534,38 @@ methodcall(ClassFile *class, Method *method)
 		[BASTORE]         = opnop,
 		[CASTORE]         = opnop,
 		[SASTORE]         = opnop,
-		[POP]             = opnop,
-		[POP2]            = opnop,
-		[DUP]             = opnop,
-		[DUP_X1]          = opnop,
-		[DUP_X2]          = opnop,
-		[DUP2]            = opnop,
-		[DUP2_X1]         = opnop,
-		[DUP2_X2]         = opnop,
+		[POP]             = oppop,
+		[POP2]            = oppop2,
+		[DUP]             = opdup,
+		[DUP_X1]          = opdup_x1,
+		[DUP_X2]          = opdup_x2,
+		[DUP2]            = opdup2,
+		[DUP2_X1]         = opdup2_x1,
+		[DUP2_X2]         = opdup2_x2,
 		[SWAP]            = opnop,
 		[IADD]            = opiadd,
-		[LADD]            = opnop,
-		[FADD]            = opnop,
+		[LADD]            = opladd,
+		[FADD]            = opfadd,
 		[DADD]            = opdadd,
-		[ISUB]            = opnop,
-		[LSUB]            = opnop,
-		[FSUB]            = opnop,
+		[ISUB]            = opisub,
+		[LSUB]            = oplsub,
+		[FSUB]            = opfsub,
 		[DSUB]            = opdsub,
-		[IMUL]            = opnop,
-		[LMUL]            = opnop,
-		[FMUL]            = opnop,
+		[IMUL]            = opimul,
+		[LMUL]            = oplmul,
+		[FMUL]            = opfmul,
 		[DMUL]            = opdmul,
-		[IDIV]            = opnop,
-		[LDIV]            = opnop,
-		[FDIV]            = opnop,
+		[IDIV]            = opidiv,
+		[LDIV]            = opldiv,
+		[FDIV]            = opfdiv,
 		[DDIV]            = opddiv,
-		[IREM]            = opnop,
-		[LREM]            = opnop,
-		[FREM]            = opnop,
+		[IREM]            = opirem,
+		[LREM]            = oplrem,
+		[FREM]            = opfrem,
 		[DREM]            = opdrem,
-		[INEG]            = opnop,
-		[LNEG]            = opnop,
-		[FNEG]            = opnop,
+		[INEG]            = opineg,
+		[LNEG]            = oplneg,
+		[FNEG]            = opfneg,
 		[DNEG]            = opdneg,
 		[ISHL]            = opnop,
 		[LSHL]            = opnop,
