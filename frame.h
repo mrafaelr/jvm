@@ -2,6 +2,7 @@
 typedef union Value {
 	U2      u;
 	int32_t i;
+	uint32_t a;
 	int64_t l;
 	float   f;
 	double  d;

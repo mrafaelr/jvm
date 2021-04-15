@@ -1377,9 +1377,125 @@ opdup2_x2(Frame *frame)
 
 /*____________________________________________________________________________________________________________________*/
 
-/*____________________________________________________________________________________________________________________*/
+/*_____________________________________________________type a_______________________________________________________________*/
+
+/* aload: load address from local variable */
+int
+opaload(Frame *frame)
+{
+	Value v;
+	U2 i;
+
+	i = frame->code->code[frame->pc++];
+	v = frame_localload(frame, i);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* aload_0: load address from local variable */
+int
+opaload_0(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 0);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* aload_1: load address from local variable */
+int
+opaload_1(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 1);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* aload_2: load address from local variable */
+int
+opaload_2(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 2);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* aload_3: load address from local variable */
+int
+opaload_3(Frame *frame)
+{
+	Value v;
+
+	v = frame_localload(frame, 3);
+	frame_stackpush(frame, v);
+	return 0;
+}
+
+/* astore: address into local variable */
+int
+opastore(Frame *frame)
+{
+	Value v;
+	U2 i;
+
+	i = frame->code->code[frame->pc++];
+	v = frame_stackpop(frame);
+	frame_localstore(frame, i, v);
+	return 0;
+}
+
+/* astore_0: store address into local variable */
+int
+opastore_0(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 0, v);
+	return 0;
+}
+
+/* astore_1: store address into local variable */
+int
+opastore_1(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 1, v);
+	return 0;
+}
+
+/* astore_2: store address into local variable */
+int
+opastore_2(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 2, v);
+	return 0;
+}
+
+/* astore_3: store address into local variable */
+int
+opastore_3(Frame *frame)
+{
+	Value v;
+
+	v = frame_stackpop(frame);
+	frame_localstore(frame, 3, v);
+	return 0;
+}
 
 /*____________________________________________________________________________________________________________________*/
+
+
 
 
 /* invokevirtual: invoke instance method; dispatch based on class */
