@@ -85,3 +85,10 @@ frame_localload(Frame *frame, U2 i)
 {
 	return frame->local[i];
 }
+
+/* get 4 value from local variable array */
+Value
+frame_localload4(Frame *frame, U4 a)
+{
+	return frame->local[a];
+}

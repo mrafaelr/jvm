@@ -2,7 +2,7 @@
 typedef union Value {
 	U2      u;
 	int32_t i;
-	uint32_t a;
+	uint32_t *a;
 	int64_t l;
 	float   f;
 	double  d;
@@ -27,3 +27,4 @@ void frame_stackpush(Frame *frame, Value value);
 Value frame_stackpop(Frame *frame);
 void frame_localstore(Frame *frame, U2 i, Value v);
 Value frame_localload(Frame *frame, U2 i);
+Value frame_localload4(Frame *frame, U4 i);

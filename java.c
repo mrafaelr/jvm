@@ -1379,6 +1379,38 @@ opdup2_x2(Frame *frame)
 
 /*_____________________________________________________type a_______________________________________________________________*/
 
+int
+opaaload(Frame *frame)
+{
+	Value v1;
+	Value *v2;
+	U4 i;
+	U4 *a;
+
+	i = frame->code->code[frame->pc++];
+	v1 = frame_localload4(frame, i);
+	*a = frame->code->code[frame->pc++];
+	*v2 = frame_localload4(frame, *a);
+	//if pointer null exception
+	// if index not in bound in array, exception
+	frame_stackpush(frame, v2[v1.i]);
+	return 0;
+} 
+
+int
+opaastore(Frame *frame)
+{
+	Value v1;
+	U2 i;
+
+	i = frame->code->code[frame->pc++];
+	v1 = frame_stackpop(frame);
+	//if pointer null exception
+	// if index not in bound in array, exception
+	frame_localstore(frame, i, v1);
+	return 0;
+}
+
 /* aload: load address from local variable */
 int
 opaload(Frame *frame)
@@ -1495,7 +1527,145 @@ opastore_3(Frame *frame)
 
 /*____________________________________________________________________________________________________________________*/
 
+/*__________________________________________________________array__________________________________________________________*/
 
+typedef enum array_type {
+	T_BOOLEAN   = 4,
+	T_CHAR      = 5,
+	T_FLOAT     = 6,
+	T_DOUBLE    = 7,
+	T_BYTE      = 8,
+	T_SHORT     = 9,
+	T_INT       = 10,
+	T_LONG      = 11,
+} arraytype;
+
+U1*
+initialize_zerou1(U1 *p, int tamanho)
+{
+	for (int i = 0; i < tamanho; i++) {
+        	*(p + i) = 0;
+    	}
+    	return p;
+}
+
+U2*
+initialize_zerou2(U2 *p, int tamanho)
+{
+	for (int i = 0; i < tamanho; i++) {
+        	*(p + i) = 0;
+    	}
+    	return p;
+}
+
+U4*
+initialize_zerou4(U4 *p, int tamanho)
+{
+	for (int i = 0; i < tamanho; i++) {
+        	*(p + i) = 0;
+    	}
+    	return p;
+}
+
+U8* 
+initialize_zerou8(U8 *p, int tamanho)
+{
+	for (int i = 0; i < tamanho; i++) {
+        	*(p + i) = 0;
+    	}
+    	return p;
+}
+
+char* 
+initialize_zerochar(char *p, int tamanho)
+{
+	for (int i = 0; i < tamanho; i++) {
+        	*(p + i) = '\0';
+    	}
+    	return p;
+}
+
+int
+opnewarray(Frame *frame)
+{
+	Value v1;
+	v1.i = frame->code->code[frame->pc++];
+	int atype = v1.i;
+	Value v;
+	v = frame_stackpop(frame);
+	
+	Value x;
+	void *p;
+	
+	switch (atype){
+		case T_BOOLEAN :
+			p = ecalloc(v.i, sizeof (U1));
+			p = initialize_zerou1(p, v.i); 
+			x.a = p;
+			frame_stackpush(frame, x);
+			return 0;
+			break;
+		case T_CHAR :
+			p = ecalloc(v.i, sizeof (U2));
+			p = initialize_zerochar(p, v.i); 
+			x.a = p;
+			frame_stackpush(frame, x);
+			return 0;
+			break;
+		case T_FLOAT :
+			p = ecalloc(v.i, sizeof (U4));
+			p = initialize_zerou4(p, v.i); 
+			x.a = p;
+			frame_stackpush(frame, x);
+			return 0;
+			break;
+		case T_DOUBLE :
+			p = ecalloc(v.i, sizeof (U8));
+			p = initialize_zerou8(p, v.i); 
+			x.a = p;
+			frame_stackpush(frame, x);
+			return 0;
+			break;
+		case T_BYTE :
+			p = ecalloc(v.i, sizeof (U1));
+			p = initialize_zerou1(p, v.i); 
+			x.a = p;
+			frame_stackpush(frame, x);
+			return 0;
+			break;
+		case T_SHORT :
+			p = ecalloc(v.i, sizeof (U2));
+			p = initialize_zerou2(p, v.i); 
+			x.a = p;
+			frame_stackpush(frame, x);
+			return 0;
+			break;
+		case T_INT :
+			p = ecalloc(v.i, sizeof (U4));
+			p = initialize_zerou4(p, v.i); 
+			x.a = p;
+			frame_stackpush(frame, x);
+			return 0;
+			break;
+		case T_LONG :
+			p = ecalloc(v.i, sizeof (U8));
+			p = initialize_zerou8(p, v.i); 
+			x.a = p;
+			frame_stackpush(frame, x);
+			return 0;
+			break;
+	}
+	return 0;
+}
+
+//int 
+//opmultianewarray(Frame *frame, U1 indexbyte1, U1 indexbyte2, unsigned int dimensions)
+//{
+	// if dimensions == 0 quit
+	
+//}
+
+/*____________________________________________________________________________________________________________________*/
 
 
 /* invokevirtual: invoke instance method; dispatch based on class */
@@ -1762,7 +1932,7 @@ methodcall(ClassFile *class, Method *method)
 		[INVOKEINTERFACE] = opnop,
 		[INVOKEDYNAMIC]   = opnop,
 		[NEW]             = opnop,
-		[NEWARRAY]        = opnop,
+		[NEWARRAY]        = opnewarray,
 		[ANEWARRAY]       = opnop,
 		[ARRAYLENGTH]     = opnop,
 		[ATHROW]          = opnop,

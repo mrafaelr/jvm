@@ -34,7 +34,7 @@ natprintln(Frame *frame, char *type)
 	else if (strcmp(type, "(I)V") == 0)
 		fprintf((FILE *)vfp.v, "%d\n", v.i);
 	else if (strcmp(type, "(J)V") == 0)
-		fprintf((FILE *)vfp.v, "%lld\n", v.l);
+		fprintf((FILE *)vfp.v, "%ld\n", v.l);
 	else if (strcmp(type, "(S)V") == 0)
 		fprintf((FILE *)vfp.v, "%d\n", v.i);
 	else if (strcmp(type, "(Z)V") == 0)
@@ -57,7 +57,6 @@ native_javaobj(JavaClass jclass, char *objname, char *objtype)
 {
 	switch (jclass) {
 	default:
-		break;
 	case LANG_SYSTEM:
 		if (strcmp(objtype, "Ljava/io/PrintStream;") == 0) {
 			if (strcmp(objname, "out") == 0) {
