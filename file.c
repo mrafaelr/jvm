@@ -24,6 +24,7 @@ enum {
 	ERR_KIND,
 	ERR_MAGIC,
 	ERR_TAG,
+	ERR_METHOD,
 };
 
 /* stack of pointers to allocated memory */
@@ -49,6 +50,7 @@ static char *errstr[] = {
 	[ERR_INDEX] = "index to constant pool out of bounds",
 	[ERR_KIND] = "invalid method handle reference kind",
 	[ERR_MAGIC] = "invalid magic number",
+	[ERR_METHOD] = "invalid method name",
 	[ERR_TAG] = "unknown constant pool tag",
 };
 
@@ -244,6 +246,22 @@ checkdescriptor(CP *cp, U2 count, U2 index)
 	}
 	if (!isdescriptor(cp[index].info.utf8_info.bytes)) {
 		errtag = ERR_DESCRIPTOR;
+		longjmp(jmpenv, 1);
+	}
+}
+
+/* check if method is not special (<init> or <clinit>) */
+static void
+checkmethod(ClassFile *class, U2 index)
+{
+	CONSTANT_Methodref_info *methodref;
+	char *name, *type;
+
+	methodref = &class->constant_pool[index].info.methodref_info;
+	class_getnameandtype(class, methodref->name_and_type_index, &name, &type);
+	if (strcmp(name, "<init>") == 0 || strcmp(name, "<clinit>") == 0) {
+		printf("%s\n", name);
+		errtag = ERR_METHOD;
 		longjmp(jmpenv, 1);
 	}
 }
@@ -481,9 +499,10 @@ readinterfaces(FILE *fp, U2 count)
 static U1 *
 readcode(FILE *fp, ClassFile *class, U4 count)
 {
-	int32_t j, npairs, high, low;
+	int32_t j, npairs, off, high, low;
 	U1 *code;
-	U4 i;
+	U4 base, i;
+	U2 u;
 
 	if (count == 0)
 		return NULL;
@@ -531,16 +550,28 @@ readcode(FILE *fp, ClassFile *class, U4 count)
 				code[++i] = readu(fp, 1);
 			break;
 		case OP_TABLESWITCH:
+			base = i;
 			while ((3 - (i % 4)) > 0)
 				code[++i] = readu(fp, 1);
 			for (j = 0; j < 12; j++)
 				code[++i] = readu(fp, 1);
+			off = (code[i-11] << 24) | (code[i-10] << 16) | (code[i-9] << 8) | code[i-8];
 			low = (code[i-7] << 24) | (code[i-6] << 16) | (code[i-5] << 8) | code[i-4];
 			high = (code[i-3] << 24) | (code[i-2] << 16) | (code[i-1] << 8) | code[i];
+			if (base + off < 0 || base + off >= count)
+				goto error;
 			if (low > high)
 				goto error;
-			for (j = high - low + 1; j > 0; j--)
+			for (j = low; j <= high; j++) {
 				code[++i] = readu(fp, 1);
+				code[++i] = readu(fp, 1);
+				code[++i] = readu(fp, 1);
+				code[++i] = readu(fp, 1);
+				off = (code[i-3] << 24) | (code[i-2] << 16) | (code[i-1] << 8) | code[i];
+				if (base + off < 0 || base + off >= count) {
+					goto error;
+				}
+			}
 			break;
 		default:
 			switch (code[i]) {
@@ -562,6 +593,22 @@ readcode(FILE *fp, ClassFile *class, U4 count)
 				code[++i] = readu(fp, 1);
 				code[++i] = readu(fp, 1);
 				checkindex(class->constant_pool, class->constant_pool_count, CONSTANT_Fieldref, code[i - 1] << 8 | code[i]);
+				break;
+			case INVOKESTATIC:
+				code[++i] = readu(fp, 1);
+				code[++i] = readu(fp, 1);
+				u = code[i - 1] << 8 | code[i];
+				checkindex(class->constant_pool, class->constant_pool_count, CONSTANT_Methodref, u);
+				checkmethod(class, u);
+				break;
+			case MULTIANEWARRAY:
+				code[++i] = readu(fp, 1);
+				code[++i] = readu(fp, 1);
+				u = code[i - 1] << 8 | code[i];
+				checkindex(class->constant_pool, class->constant_pool_count, CONSTANT_Class, u);
+				code[++i] = readu(fp, 1);
+				if (code[i] < 1)
+					goto error;
 				break;
 			default:
 				for (j = class_getnoperands(code[i]); j > 0; j--)

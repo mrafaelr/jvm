@@ -695,7 +695,7 @@ printcode(Code_attribute *codeattr, U2 nargs)
 	U1 opcode;
 	U4 count;
 	U4 a, b, c, d;
-	U4 i;
+	U4 i, base;
 
 	code = codeattr->code;
 	count = codeattr->code_length;
@@ -744,7 +744,7 @@ printcode(Code_attribute *codeattr, U2 nargs)
 			i += 8 * npairs;
 			break;
 		case OP_TABLESWITCH:
-			i++;
+			base = i++;
 			while (i % 4)
 				i++;
 			a = code[i++];
@@ -763,16 +763,16 @@ printcode(Code_attribute *codeattr, U2 nargs)
 			d = code[i++];
 			high = (a << 24) | (b << 16) | (c << 8) | d;
 			printf("   {  // %d to %d\n", low, high);
-			for (j = 0; j < high - low + 1; j++) {
+			for (j = low; j <= high; j++) {
 				a = code[i++];
 				b = code[i++];
 				c = code[i++];
 				d = code[i++];
 				n = (a << 24) | (b << 16) | (c << 8) | d;
-				printf("%24d: %d\n", j, n + 1);
+				printf("%24d: %d\n", j, n + base);
 			}
 			i--;
-			printf("                 default: %d\n", def + 1);
+			printf("                 default: %d\n", def + base);
 			printf("            }");
 			break;
 		default:

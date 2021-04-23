@@ -7,6 +7,24 @@ typedef uint16_t U2;
 typedef uint32_t U4;
 typedef uint64_t U8;
 
+/* heap object structure */
+typedef struct Heap {
+	struct Heap *prev, *next;
+	void  *obj;
+	int32_t nmemb;
+	size_t count;
+} Heap;
+
+/* local variable or operand structure */
+typedef union Value {
+	U2      u;
+	int32_t i;
+	int64_t l;
+	float   f;
+	double  d;
+	Heap   *v;
+} Value;
+
 typedef enum Instruction {
 	/* constants */
 	NOP             = 0x00,
@@ -266,6 +284,7 @@ typedef enum FlagType {
 } FlagType;
 
 typedef enum AccessFlags {
+	ACC_NONE         = 0x0000,
 	ACC_PUBLIC       = 0x0001,
 	ACC_PRIVATE      = 0x0002,
 	ACC_PROTECTED    = 0x0004,

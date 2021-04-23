@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "class.h"
-#include "frame.h"
+#include "memory.h"
 #include "native.h"
 
 static struct {
@@ -22,23 +22,23 @@ natprintln(Frame *frame, char *type)
 	v = frame_stackpop(frame);
 	vfp = frame_stackpop(frame);
 	if (strcmp(type, "(Ljava/lang/String;)V") == 0)
-		fprintf((FILE *)vfp.v, "%s\n", (char *)v.v);
+		fprintf((FILE *)vfp.v->obj, "%s\n", (char *)v.v->obj);
 	else if (strcmp(type, "(B)V") == 0)
-		fprintf((FILE *)vfp.v, "%d\n", v.i);
+		fprintf((FILE *)vfp.v->obj, "%d\n", v.i);
 	else if (strcmp(type, "(C)V") == 0)
-		fprintf((FILE *)vfp.v, "%c\n", v.i);
+		fprintf((FILE *)vfp.v->obj, "%c\n", v.i);
 	else if (strcmp(type, "(D)V") == 0)
-		fprintf((FILE *)vfp.v, "%.16g\n", v.d);
+		fprintf((FILE *)vfp.v->obj, "%.16g\n", v.d);
 	else if (strcmp(type, "(F)V") == 0)
-		fprintf((FILE *)vfp.v, "%.16g\n", v.f);
+		fprintf((FILE *)vfp.v->obj, "%.16g\n", v.f);
 	else if (strcmp(type, "(I)V") == 0)
-		fprintf((FILE *)vfp.v, "%d\n", v.i);
+		fprintf((FILE *)vfp.v->obj, "%d\n", v.i);
 	else if (strcmp(type, "(J)V") == 0)
-		fprintf((FILE *)vfp.v, "%ld\n", v.l);
+		fprintf((FILE *)vfp.v->obj, "%lld\n", v.l);
 	else if (strcmp(type, "(S)V") == 0)
-		fprintf((FILE *)vfp.v, "%d\n", v.i);
+		fprintf((FILE *)vfp.v->obj, "%d\n", v.i);
 	else if (strcmp(type, "(Z)V") == 0)
-		fprintf((FILE *)vfp.v, "%d\n", v.i);
+		fprintf((FILE *)vfp.v->obj, "%d\n", v.i);
 }
 
 JavaClass
@@ -57,6 +57,7 @@ native_javaobj(JavaClass jclass, char *objname, char *objtype)
 {
 	switch (jclass) {
 	default:
+		break;
 	case LANG_SYSTEM:
 		if (strcmp(objtype, "Ljava/io/PrintStream;") == 0) {
 			if (strcmp(objname, "out") == 0) {

@@ -11,7 +11,7 @@
 #include "util.h"
 #include "class.h"
 #include "file.h"
-#include "frame.h"
+#include "memory.h"
 #include "native.h"
 
 /* path separator */
@@ -28,7 +28,7 @@ enum {
 	RETURN_ERROR = 3
 };
 
-void methodcall(ClassFile *class, Method *method);
+int methodcall(ClassFile *class, Frame *frame, char *name, char *descr, U2 flags);
 
 static char **classpath = NULL;         /* NULL-terminated array of path strings */
 static ClassFile *classes = NULL;       /* list of loaded classes */
@@ -54,7 +54,7 @@ getclass(char *classname)
 }
 
 /* break cpath into paths and set classpath global variable */
-void
+static void
 setclasspath(char *cpath)
 {
 	char *s;
@@ -77,7 +77,7 @@ setclasspath(char *cpath)
 }
 
 /* free all the classes in the list of loaded classes */
-void
+static void
 classfree(void)
 {
 	ClassFile *tmp;
@@ -91,7 +91,7 @@ classfree(void)
 }
 
 /* recursivelly load class and its superclasses from file matching class name */
-ClassFile *
+static ClassFile *
 classload(char *classname)
 {
 	ClassFile *class, *tmp;
@@ -149,7 +149,7 @@ classload(char *classname)
 }
 
 /* initialize class */
-void
+static void
 classinit(ClassFile *class)
 {
 	Method *method;
@@ -160,14 +160,15 @@ classinit(ClassFile *class)
 	if (class->super)
 		classinit(class->super);
 	if ((method = class_getmethod(class, "<clinit>", "()V")) != NULL)
-		methodcall(class, method);
+	(void)methodcall(class, NULL, "<clinit>", "()V", (class->major_version >= 51 ? ACC_STATIC : ACC_NONE));
 }
 
 /* resolve constant reference */
-Value
+static Value
 resolveconstant(ClassFile *class, U2 index)
 {
 	Value v;
+	char *s;
 
 	v.i = 0;
 	switch (class->constant_pool[index].tag) {
@@ -184,70 +185,70 @@ resolveconstant(ClassFile *class, U2 index)
 		v.d = class_getdouble(class, index);
 		break;
 	case CONSTANT_String:
-		v.a1 = class_getstring(class, index);
+		s = class_getstring(class, index);
+		v.v = heap_alloc(1, sizeof (char *));
+		v.v->obj = s;
 		break;
 	}
 	return v;
 }
 
 /* resolve field reference */
-Value
+static Value
 resolvefield(ClassFile *class, CONSTANT_Fieldref_info *fieldref)
 {
-	Value value;
+	Value v;
 	enum JavaClass jclass;
 	char *classname, *name, *type;
 
-	value.v = NULL;
+	v.v = NULL;
 	classname = class_getclassname(class, fieldref->class_index);
 	class_getnameandtype(class, fieldref->name_and_type_index, &name, &type);
 	if ((jclass = native_javaclass(classname)) != 0) {
-		value.v = native_javaobj(jclass, name, type);
-	} else {
-		value.v = class_getfield(class, name, type);
-		// TODO search in superinterfaces
-		if (value.v == NULL && class->super != NULL) {
-			value = resolvefield(class->super, fieldref);
-		}
-	}
-	if (value.v == NULL)
-		errx(EXIT_FAILURE, "could not resolve field");
-	return value;
-}
-
-Value
-resolvestring(ClassFile *class, CONSTANT_String_info *stringref)
-{
-	Value value;
-	
-	enum JavaClass jclass;
-	char *classname;
-
-	classname = class_getclassname(class, stringref->string_index);
-	if ((jclass = native_javaclass(classname)) != 0) {
-		native_javaclass(classname);
-	} 
-	return value;
-}
-
-/* resolve method reference */
-void
-resolvemethod(Frame *frame, ClassFile *class, CONSTANT_Methodref_info *methodref)
-{
-	enum JavaClass jclass;
-	char *classname, *name, *type;
-
-	classname = class_getclassname(class, methodref->class_index);
-	class_getnameandtype(class, methodref->name_and_type_index, &name, &type);
-	if ((jclass = native_javaclass(classname)) != 0) {
-		native_javamethod(frame, jclass, name, type);
+		v.v = heap_alloc(1, sizeof (void *));
+		v.v->obj = native_javaobj(jclass, name, type);
 	} else {
 		// TODO
 	}
+	if (v.v == NULL)
+		errx(EXIT_FAILURE, "could not resolve field");
+	return v;
+}
+
+/* aaload: load reference from array */
+static int
+opaaload(Frame *frame)
+{
+	Value va, vi, v;
+
+	vi = frame_stackpop(frame);
+	va = frame_stackpop(frame);
+	v.v = ((void **)va.v->obj)[vi.i];
+	frame_stackpush(frame, v);
+	return NO_RETURN;
+}
+
+/* aastore: store into reference array */
+static int
+opaastore(Frame *frame)
+{
+	Value va, vi, vv;
+
+	vv = frame_stackpop(frame);
+	vi = frame_stackpop(frame);
+	va = frame_stackpop(frame);
+	if (va.v->obj == NULL) {
+		// TODO: throw NullPointerException
+	}
+	if (vi.i < 0 || vi.i >= va.v->nmemb) {
+		// TODO: throw ArrayIndexOutOfBoundsException
+	}
+	((void **)va.v->obj)[vi.i] = vv.v;
+	return NO_RETURN;
 }
 
 /* dadd: add double */
-int
+static int
 opdadd(Frame *frame)
 {
 	Value v1, v2;
@@ -256,11 +257,11 @@ opdadd(Frame *frame)
 	v1 = frame_stackpop(frame);
 	v1.d += v2.d;
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
 /* ddiv: divide double */
-int
+static int
 opddiv(Frame *frame)
 {
 	Value v1, v2;
@@ -269,11 +270,11 @@ opddiv(Frame *frame)
 	v1 = frame_stackpop(frame);
 	v1.d /= v2.d;
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
 /* dmul: multiply double */
-int
+static int
 opdmul(Frame *frame)
 {
 	Value v1, v2;
@@ -282,11 +283,11 @@ opdmul(Frame *frame)
 	v1 = frame_stackpop(frame);
 	v1.d *= v2.d;
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
 /* dneg: negate double */
-int
+static int
 opdneg(Frame *frame)
 {
 	Value v;
@@ -294,11 +295,11 @@ opdneg(Frame *frame)
 	v = frame_stackpop(frame);
 	v.d = -v.d;
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* drem: remainder double */
-int
+static int
 opdrem(Frame *frame)
 {
 	Value v1, v2;
@@ -307,11 +308,11 @@ opdrem(Frame *frame)
 	v1 = frame_stackpop(frame);
 	v1.d = fmod(v1.d, v2.d);
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
 /* dsub: subtract double */
-int
+static int
 opdsub(Frame *frame)
 {
 	Value v1, v2;
@@ -320,130 +321,11 @@ opdsub(Frame *frame)
 	v1 = frame_stackpop(frame);
 	v1.d -= v2.d;
 	frame_stackpush(frame, v1);
-	return 0;
-}
-
-/* dload: load double from local variable */
-int
-opdload(Frame *frame)
-{
-	Value v;
-	U2 i;
-
-	i = frame->code->code[frame->pc++];
-	v = frame_localload(frame, i);
-	frame_stackpush(frame, v);
-	return 0;
-}
-
-/* dload_0: load double from local variable */
-int
-opdload_0(Frame *frame)
-{
-	Value v;
-
-	v = frame_localload(frame, 0);
-	frame_stackpush(frame, v);
-	return 0;
-}
-
-/* dload_1: load double from local variable */
-int
-opdload_1(Frame *frame)
-{
-	Value v;
-
-	v = frame_localload(frame, 1);
-	frame_stackpush(frame, v);
-	return 0;
-}
-
-/* dload_2: load double from local variable */
-int
-opdload_2(Frame *frame)
-{
-	Value v;
-
-	v = frame_localload(frame, 2);
-	frame_stackpush(frame, v);
-	return 0;
-}
-
-/* dload_3: load double from local variable */
-int
-opdload_3(Frame *frame)
-{
-	Value v;
-
-	v = frame_localload(frame, 3);
-	frame_stackpush(frame, v);
-	return 0;
-}
-
-/* dstore: store double into local variable */
-int
-opdstore(Frame *frame)
-{
-	Value v;
-	U2 i;
-
-	i = frame->code->code[frame->pc++];
-	v = frame_stackpop(frame);
-	frame_localstore(frame, i, v);
-	frame_localstore(frame, i + 1, v);
-	return 0;
-}
-
-/* dstore_0: store double into local variable */
-int
-opdstore_0(Frame *frame)
-{
-	Value v;
-
-	v = frame_stackpop(frame);
-	frame_localstore(frame, 0, v);
-	frame_localstore(frame, 1, v);
-	return 0;
-}
-
-/* dstore_1: store double into local variable */
-int
-opdstore_1(Frame *frame)
-{
-	Value v;
-
-	v = frame_stackpop(frame);
-	frame_localstore(frame, 1, v);
-	frame_localstore(frame, 2, v);
-	return 0;
-}
-
-/* dstore_2: store double into local variable */
-int
-opdstore_2(Frame *frame)
-{
-	Value v;
-
-	v = frame_stackpop(frame);
-	frame_localstore(frame, 2, v);
-	frame_localstore(frame, 3, v);
-	return 0;
-}
-
-/* dstore_3: store double into local variable */
-int
-opdstore_3(Frame *frame)
-{
-	Value v;
-
-	v = frame_stackpop(frame);
-	frame_localstore(frame, 3, v);
-	frame_localstore(frame, 4, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* getstatic: get static field from class */
-int
+static int
 opgetstatic(Frame *frame)
 {
 	CONSTANT_Fieldref_info *fieldref;
@@ -451,15 +333,15 @@ opgetstatic(Frame *frame)
 	U2 i;
 
 	i = frame->code->code[frame->pc++] << 8;
-	i = frame->code->code[frame->pc++];
+	i |= frame->code->code[frame->pc++];
 	fieldref = &frame->class->constant_pool[i].info.fieldref_info;
 	v = resolvefield(frame->class, fieldref);
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* iadd: add int */
-int
+static int
 opiadd(Frame *frame)
 {
 	Value v1, v2;
@@ -468,13 +350,11 @@ opiadd(Frame *frame)
 	v1 = frame_stackpop(frame);
 	v1.i += v2.i;
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
-/* _______________________________________________ int ___________________________________________________________________*/
-
 /* idiv: divide int */
-int
+static int
 opidiv(Frame *frame)
 {
 	Value v1, v2;
@@ -483,11 +363,11 @@ opidiv(Frame *frame)
 	v1 = frame_stackpop(frame);
 	v1.i /= v2.i;
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
 /* imul: multiply int */
-int
+static int
 opimul(Frame *frame)
 {
 	Value v1, v2;
@@ -496,11 +376,11 @@ opimul(Frame *frame)
 	v1 = frame_stackpop(frame);
 	v1.i *= v2.i;
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
 /* ineg: negate int */
-int
+static int
 opineg(Frame *frame)
 {
 	Value v;
@@ -508,24 +388,24 @@ opineg(Frame *frame)
 	v = frame_stackpop(frame);
 	v.i = -v.i;
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* irem: remainder int */
-int
+static int
 opirem(Frame *frame)
 {
 	Value v1, v2;
 
 	v2 = frame_stackpop(frame);
 	v1 = frame_stackpop(frame);
-	v1.d = fmod(v1.i, v2.i);
+	v1.i = v1.i - (v1.i / v2.i) * v2.i;
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
 /* isub: subtract int */
-int
+static int
 opisub(Frame *frame)
 {
 	Value v1, v2;
@@ -534,11 +414,11 @@ opisub(Frame *frame)
 	v1 = frame_stackpop(frame);
 	v1.i -= v2.i;
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
 /* iload: load int from local variable */
-int
+static int
 opiload(Frame *frame)
 {
 	Value v;
@@ -547,55 +427,55 @@ opiload(Frame *frame)
 	i = frame->code->code[frame->pc++];
 	v = frame_localload(frame, i);
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
-/* iload_0: load double from local variable */
-int
+/* iload_0: load int from local variable */
+static int
 opiload_0(Frame *frame)
 {
 	Value v;
 
 	v = frame_localload(frame, 0);
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* iload_1: load int from local variable */
-int
+static int
 opiload_1(Frame *frame)
 {
 	Value v;
 
 	v = frame_localload(frame, 1);
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* iload_2: load int from local variable */
-int
+static int
 opiload_2(Frame *frame)
 {
 	Value v;
 
 	v = frame_localload(frame, 2);
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* iload_3: load int from local variable */
-int
+static int
 opiload_3(Frame *frame)
 {
 	Value v;
 
 	v = frame_localload(frame, 3);
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
-/* istore: store int into local variable */
-int
+/* store: store into local variable */
+static int
 opistore(Frame *frame)
 {
 	Value v;
@@ -604,58 +484,55 @@ opistore(Frame *frame)
 	i = frame->code->code[frame->pc++];
 	v = frame_stackpop(frame);
 	frame_localstore(frame, i, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* istore_0: store int into local variable */
-int
+static int
 opistore_0(Frame *frame)
 {
 	Value v;
 
 	v = frame_stackpop(frame);
 	frame_localstore(frame, 0, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* istore_1: store int into local variable */
-int
+static int
 opistore_1(Frame *frame)
 {
 	Value v;
 
 	v = frame_stackpop(frame);
 	frame_localstore(frame, 1, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* istore_2: store int into local variable */
-int
+static int
 opistore_2(Frame *frame)
 {
 	Value v;
 
 	v = frame_stackpop(frame);
 	frame_localstore(frame, 2, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* istore_3: store int into local variable */
-int
+static int
 opistore_3(Frame *frame)
 {
 	Value v;
 
 	v = frame_stackpop(frame);
 	frame_localstore(frame, 3, v);
-	return 0;
+	return NO_RETURN;
 }
-/*_______________________________________________________________________________________________________________*/
-
-/* _______________________________________________ float ___________________________________________________________________*/
 
 /* fadd: add float */
-int
+static int
 opfadd(Frame *frame)
 {
 	Value v1, v2;
@@ -664,11 +541,11 @@ opfadd(Frame *frame)
 	v1 = frame_stackpop(frame);
 	v1.f += v2.f;
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
 /* fdiv: divide float */
-int
+static int
 opfdiv(Frame *frame)
 {
 	Value v1, v2;
@@ -677,11 +554,11 @@ opfdiv(Frame *frame)
 	v1 = frame_stackpop(frame);
 	v1.f /= v2.f;
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
 /* fmul: multiply float */
-int
+static int
 opfmul(Frame *frame)
 {
 	Value v1, v2;
@@ -690,11 +567,11 @@ opfmul(Frame *frame)
 	v1 = frame_stackpop(frame);
 	v1.f *= v2.f;
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
 /* fneg: negate float */
-int
+static int
 opfneg(Frame *frame)
 {
 	Value v;
@@ -702,24 +579,24 @@ opfneg(Frame *frame)
 	v = frame_stackpop(frame);
 	v.f = -v.f;
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* frem: remainder float */
-int
+static int
 opfrem(Frame *frame)
 {
 	Value v1, v2;
 
 	v2 = frame_stackpop(frame);
 	v1 = frame_stackpop(frame);
-	v1.d = fmod(v1.f, v2.f);
+	v1.f = fmodf(v1.f, v2.f);
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
 /* fsub: subtract float */
-int
+static int
 opfsub(Frame *frame)
 {
 	Value v1, v2;
@@ -728,129 +605,11 @@ opfsub(Frame *frame)
 	v1 = frame_stackpop(frame);
 	v1.f -= v2.f;
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
-
-/* fload: load float from local variable */
-int
-opfload(Frame *frame)
-{
-	Value v;
-	U2 i;
-
-	i = frame->code->code[frame->pc++];
-	v = frame_localload(frame, i);
-	frame_stackpush(frame, v);
-	return 0;
-}
-
-/* fload_0: load float from local variable */
-int
-opfload_0(Frame *frame)
-{
-	Value v;
-
-	v = frame_localload(frame, 0);
-	frame_stackpush(frame, v);
-	return 0;
-}
-
-/* fload_1: load float from local variable */
-int
-opfload_1(Frame *frame)
-{
-	Value v;
-
-	v = frame_localload(frame, 1);
-	frame_stackpush(frame, v);
-	return 0;
-}
-
-/* fload_2: load float from local variable */
-int
-opfload_2(Frame *frame)
-{
-	Value v;
-
-	v = frame_localload(frame, 2);
-	frame_stackpush(frame, v);
-	return 0;
-}
-
-/* fload_3: load float from local variable */
-int
-opfload_3(Frame *frame)
-{
-	Value v;
-
-	v = frame_localload(frame, 3);
-	frame_stackpush(frame, v);
-	return 0;
-}
-
-/* fstore: store float into local variable */
-int
-opfstore(Frame *frame)
-{
-	Value v;
-	U2 i;
-
-	i = frame->code->code[frame->pc++];
-	v = frame_stackpop(frame);
-	frame_localstore(frame, i, v);
-	return 0;
-}
-
-/* fstore_0: store float into local variable */
-int
-opfstore_0(Frame *frame)
-{
-	Value v;
-
-	v = frame_stackpop(frame);
-	frame_localstore(frame, 0, v);
-	return 0;
-}
-
-/* fstore_1: store float into local variable */
-int
-opfstore_1(Frame *frame)
-{
-	Value v;
-
-	v = frame_stackpop(frame);
-	frame_localstore(frame, 1, v);
-	return 0;
-}
-
-/* istore_2: store float into local variable */
-int
-opfstore_2(Frame *frame)
-{
-	Value v;
-
-	v = frame_stackpop(frame);
-	frame_localstore(frame, 2, v);
-	return 0;
-}
-
-/* fstore_3: store float into local variable */
-int
-opfstore_3(Frame *frame)
-{
-	Value v;
-
-	v = frame_stackpop(frame);
-	frame_localstore(frame, 3, v);
-	return 0;
-}
-
-/*_______________________________________________________________________________________________________________*/
-
-/* _______________________________________________ long ___________________________________________________________________*/
 
 /* ladd: add long */
-int
+static int
 opladd(Frame *frame)
 {
 	Value v1, v2;
@@ -859,11 +618,11 @@ opladd(Frame *frame)
 	v1 = frame_stackpop(frame);
 	v1.l += v2.l;
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
 /* ldiv: divide long */
-int
+static int
 opldiv(Frame *frame)
 {
 	Value v1, v2;
@@ -872,11 +631,11 @@ opldiv(Frame *frame)
 	v1 = frame_stackpop(frame);
 	v1.l /= v2.l;
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
 /* lmul: multiply long */
-int
+static int
 oplmul(Frame *frame)
 {
 	Value v1, v2;
@@ -885,11 +644,11 @@ oplmul(Frame *frame)
 	v1 = frame_stackpop(frame);
 	v1.l *= v2.l;
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
 /* lneg: negate long */
-int
+static int
 oplneg(Frame *frame)
 {
 	Value v;
@@ -897,24 +656,24 @@ oplneg(Frame *frame)
 	v = frame_stackpop(frame);
 	v.l = -v.l;
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* lrem: remainder long */
-int
+static int
 oplrem(Frame *frame)
 {
 	Value v1, v2;
 
 	v2 = frame_stackpop(frame);
 	v1 = frame_stackpop(frame);
-	v1.l = fmod(v1.l, v2.l);
+	v1.l = v1.l - (v1.l / v2.l) * v2.l;
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
 /* lsub: subtract long */
-int
+static int
 oplsub(Frame *frame)
 {
 	Value v1, v2;
@@ -923,11 +682,11 @@ oplsub(Frame *frame)
 	v1 = frame_stackpop(frame);
 	v1.l -= v2.l;
 	frame_stackpush(frame, v1);
-	return 0;
+	return NO_RETURN;
 }
 
 /* lload: load long from local variable */
-int
+static int
 oplload(Frame *frame)
 {
 	Value v;
@@ -936,55 +695,55 @@ oplload(Frame *frame)
 	i = frame->code->code[frame->pc++];
 	v = frame_localload(frame, i);
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* lload_0: load long from local variable */
-int
+static int
 oplload_0(Frame *frame)
 {
 	Value v;
 
 	v = frame_localload(frame, 0);
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* lload_1: load long from local variable */
-int
+static int
 oplload_1(Frame *frame)
 {
 	Value v;
 
 	v = frame_localload(frame, 1);
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* lload_2: load long from local variable */
-int
+static int
 oplload_2(Frame *frame)
 {
 	Value v;
 
 	v = frame_localload(frame, 2);
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* lload_3: load long from local variable */
-int
+static int
 oplload_3(Frame *frame)
 {
 	Value v;
 
 	v = frame_localload(frame, 3);
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* lstore: store long into local variable */
-int
+static int
 oplstore(Frame *frame)
 {
 	Value v;
@@ -994,11 +753,11 @@ oplstore(Frame *frame)
 	v = frame_stackpop(frame);
 	frame_localstore(frame, i, v);
 	frame_localstore(frame, i + 1, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* lstore_0: store long into local variable */
-int
+static int
 oplstore_0(Frame *frame)
 {
 	Value v;
@@ -1006,11 +765,11 @@ oplstore_0(Frame *frame)
 	v = frame_stackpop(frame);
 	frame_localstore(frame, 0, v);
 	frame_localstore(frame, 1, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* lstore_1: store long into local variable */
-int
+static int
 oplstore_1(Frame *frame)
 {
 	Value v;
@@ -1018,11 +777,11 @@ oplstore_1(Frame *frame)
 	v = frame_stackpop(frame);
 	frame_localstore(frame, 1, v);
 	frame_localstore(frame, 2, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* lstore_2: store long into local variable */
-int
+static int
 oplstore_2(Frame *frame)
 {
 	Value v;
@@ -1030,11 +789,11 @@ oplstore_2(Frame *frame)
 	v = frame_stackpop(frame);
 	frame_localstore(frame, 2, v);
 	frame_localstore(frame, 3, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* lstore_3: store long into local variable */
-int
+static int
 oplstore_3(Frame *frame)
 {
 	Value v;
@@ -1042,15 +801,11 @@ oplstore_3(Frame *frame)
 	v = frame_stackpop(frame);
 	frame_localstore(frame, 3, v);
 	frame_localstore(frame, 4, v);
-	return 0;
+	return NO_RETURN;
 }
 
-/*____________________________________________________________________________________________________________________*/
-
-/*____________________________________________________ const ________________________________________________________________*/
-
 /* iconst_m1: push int -1 into stack */
-int
+static int
 opiconst_m1(Frame *frame)
 {
 	Value v;
@@ -1061,7 +816,7 @@ opiconst_m1(Frame *frame)
 }
 
 /* iconst_0: push int 0 into stack */
-int
+static int
 opiconst_0(Frame *frame)
 {
 	Value v;
@@ -1072,7 +827,7 @@ opiconst_0(Frame *frame)
 }
 
 /* iconst_1: push int 1 into stack */
-int
+static int
 opiconst_1(Frame *frame)
 {
 	Value v;
@@ -1083,7 +838,7 @@ opiconst_1(Frame *frame)
 }
 
 /* iconst_2: push int 2 into stack */
-int
+static int
 opiconst_2(Frame *frame)
 {
 	Value v;
@@ -1094,7 +849,7 @@ opiconst_2(Frame *frame)
 }
 
 /* iconst_3: push int 3 into stack */
-int
+static int
 opiconst_3(Frame *frame)
 {
 	Value v;
@@ -1105,7 +860,7 @@ opiconst_3(Frame *frame)
 }
 
 /* iconst_4: push int 4 into stack */
-int
+static int
 opiconst_4(Frame *frame)
 {
 	Value v;
@@ -1116,7 +871,7 @@ opiconst_4(Frame *frame)
 }
 
 /* iconst_5: push int 5 into stack */
-int
+static int
 opiconst_5(Frame *frame)
 {
 	Value v;
@@ -1127,675 +882,278 @@ opiconst_5(Frame *frame)
 }
 
 /* lconst_0: push long 0 into stack */
-int
+static int
 oplconst_0(Frame *frame)
 {
 	Value v;
 
 	v.l = 0;
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* lconst_1: push long 1 into stack */
-int
+static int
 oplconst_1(Frame *frame)
 {
 	Value v;
 
 	v.l = 1;
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* fconst_0: push float 0 into stack */
-int
+static int
 opfconst_0(Frame *frame)
 {
 	Value v;
 
 	v.f = 0.0;
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* fconst_1: push float 1 into stack */
-int
+static int
 opfconst_1(Frame *frame)
 {
 	Value v;
 
 	v.f = 1.0;
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* fconst_2: push float 2 into stack */
-int
+static int
 opfconst_2(Frame *frame)
 {
 	Value v;
 
 	v.f = 2.0;
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* dconst_0: push double 0 into stack */
-int
+static int
 opdconst_0(Frame *frame)
 {
 	Value v;
 
 	v.d = 0.0;
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* dconst_1: push double 1 into stack */
-int
+static int
 opdconst_1(Frame *frame)
 {
 	Value v;
 
 	v.d = 1.0;
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* bipush: push byte */
-int
+static int
 opbipush(Frame *frame)
 {
 	Value v;
 
 	v.i = frame->code->code[frame->pc++];
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
-/*____________________________________________________________________________________________________________________*/
+/* sipush: push short */
+static int
+opsipush(Frame *frame)
+{
+	Value v;
+	U2
 
-/*________________________________________________________pop____________________________________________________________*/
+	i = frame->code->code[frame->pc++] << 8;
+	i |= frame->code->code[frame->pc++];
+	v.i = i;
+	frame_stackpush(frame, v);
+	return NO_RETURN;
+}
 
-int
+/* pop: pop the top operand stack value */
+static int
 oppop(Frame *frame)
 {
 	Value v;
 	v = frame_stackpop(frame);
-	if (v.d || v.l) {
-		frame_stackpush(frame, v);
-		return 1; /*Needs to throw exception!!*/
-	}
-	return 0;   
+	return NO_RETURN;
 }
 
-int
+/* pop: pop the top one or two operand stack values */
+static int
 oppop2(Frame *frame)
 {
 	frame_stackpop(frame);
-	return 0;   
+	frame_stackpop(frame);
+	return NO_RETURN;
 }
 
-/*____________________________________________________________________________________________________________________*/
-
-/*________________________________________________________dup____________________________________________________________*/
-
-int
+/* dup: duplicate the top operand stack value */
+static int
 opdup(Frame *frame)
 {
 	Value v;
+
 	v = frame_stackpop(frame);
-	if (v.d || v.l) {
-		frame_stackpush(frame, v);
-		return 1; /*Needs to throw exception!!*/
-	}
 	frame_stackpush(frame, v);
 	frame_stackpush(frame, v);
-	return 0;   
+	return NO_RETURN;
 }
 
-int
+/* dup_x1: duplicate the top operand stack value and insert two values down */
+static int
 opdup_x1(Frame *frame)
 {
 	Value v1, v2;
+
 	v1 = frame_stackpop(frame);
 	v2 = frame_stackpop(frame);
-	if ((v1.d || v1.l) || (v2.d || v2.l)) {
-		frame_stackpush(frame, v2);
-		frame_stackpush(frame, v1);
-		return 1; /*Needs to throw exception!!*/
-	}
-	frame_stackpush(frame, v2);
 	frame_stackpush(frame, v1);
 	frame_stackpush(frame, v2);
 	frame_stackpush(frame, v1);
-	return 0;   
+	return NO_RETURN;
 }
 
-int
+/* dup_x2: duplicate the top operand stack value and insert two or three values down */
+static int
 opdup_x2(Frame *frame)
 {
 	Value v1, v2, v3;
+
 	v1 = frame_stackpop(frame);
 	v2 = frame_stackpop(frame);
 	v3 = frame_stackpop(frame);
-	if (((v1.d || v1.l) || (v2.d || v2.l) || (v3.d || v3.l))) {
-		frame_stackpush(frame, v3);
-		frame_stackpush(frame, v2);
-		frame_stackpush(frame, v1);
-		frame_stackpush(frame, v2);
-		frame_stackpush(frame, v1);
-	}
-	frame_stackpush(frame, v3);
-	frame_stackpush(frame, v2);
 	frame_stackpush(frame, v1);
 	frame_stackpush(frame, v3);
 	frame_stackpush(frame, v2);
 	frame_stackpush(frame, v1);
-	return 0;   
+	return NO_RETURN;
 }
 
-int
+/* dup2: duplicate the top one or two operand stack values */
+static int
 opdup2(Frame *frame)
 {
 	Value v1, v2;
+
 	v1 = frame_stackpop(frame);
 	v2 = frame_stackpop(frame);
-	if (v1.d || v2.l) {
-		frame_stackpush(frame, v1);
-		frame_stackpush(frame, v2);
-		frame_stackpush(frame, v1);
-	}
 	frame_stackpush(frame, v2);
 	frame_stackpush(frame, v1);
 	frame_stackpush(frame, v2);
 	frame_stackpush(frame, v1);
-	return 0;   
+	return NO_RETURN;
 }
 
-int
+/* dup2_x1: duplicate the top one or two operand stack values and insert two or three values down */
+static int
 opdup2_x1(Frame *frame)
 {
 	Value v1, v2, v3;
+
 	v1 = frame_stackpop(frame);
 	v2 = frame_stackpop(frame);
 	v3 = frame_stackpop(frame);
-	if (((v1.d || v1.l) || (v2.d || v2.l) || (v3.d || v3.l))) {
-		frame_stackpush(frame, v3);
-		frame_stackpush(frame, v2);
-		frame_stackpush(frame, v1);
-		frame_stackpush(frame, v2);
-		frame_stackpush(frame, v1);
-	}
-	frame_stackpush(frame, v3);
 	frame_stackpush(frame, v2);
 	frame_stackpush(frame, v1);
 	frame_stackpush(frame, v3);
 	frame_stackpush(frame, v2);
 	frame_stackpush(frame, v1);
-	return 0; 
+	return NO_RETURN;
 }
 
-int
+/* dup2_x2: duplicate the top one or two operand stack values and insert two, three or four values down */
+static int
 opdup2_x2(Frame *frame)
 {
 	Value v1, v2, v3, v4;
+
 	v1 = frame_stackpop(frame);
 	v2 = frame_stackpop(frame);
 	v3 = frame_stackpop(frame);
 	v4 = frame_stackpop(frame);
-	
-	if (((v1.d || v1.l) && (v2.d || v2.l) && (v3.d || v3.l))) {
-		frame_stackpush(frame, v4);
-		frame_stackpush(frame, v3);
-		frame_stackpush(frame, v2);
-		frame_stackpush(frame, v1);
-		frame_stackpush(frame, v2);
-		frame_stackpush(frame, v1);
-		return 0;
-	}
-	else if ((v1.d || v1.l)){
-		frame_stackpush(frame, v4);
-		frame_stackpush(frame, v3);
-		frame_stackpush(frame, v2);
-		frame_stackpush(frame, v1);
-		frame_stackpush(frame, v3);
-		frame_stackpush(frame, v2);
-		frame_stackpush(frame, v1);
-		return 0;
-		
-	}
-	else if ((v3.d || v3.l)){
-		frame_stackpush(frame, v4);
-		frame_stackpush(frame, v3);
-		frame_stackpush(frame, v2);
-		frame_stackpush(frame, v1);
-		frame_stackpush(frame, v3);
-		frame_stackpush(frame, v2);
-		frame_stackpush(frame, v1);
-		return 0;
-		
-	} else if ((!(v1.d || v1.l) && !(v2.d || v2.l) && !(v3.d || v3.l))){
-	
-		frame_stackpush(frame, v4);
-		frame_stackpush(frame, v3);
-		frame_stackpush(frame, v2);
-		frame_stackpush(frame, v1);
-		frame_stackpush(frame, v4);
-		frame_stackpush(frame, v3);
-		frame_stackpush(frame, v2);
-		frame_stackpush(frame, v1);
-		return 0;
-	} else {
-		frame_stackpush(frame, v4);
-		frame_stackpush(frame, v3);
-		frame_stackpush(frame, v2);
-		frame_stackpush(frame, v1);
-		return 1; /*Needs to throw exception*/
-	}
-}
-
-
-/*____________________________________________________________________________________________________________________*/
-
-/*_____________________________________________________type a_______________________________________________________________*/
-
-int
-opaaload(Frame *frame)
-{
-	Value index;
-	Value ref, value;
-	
-	if (ref.a) {
-		void *b;
-		
-		b = emalloc(sizeof (void*));
-
-		index = frame_stackpop(frame);
-		ref = frame_stackpop(frame);
-		b = ref.a[index.i];
-		value.a1 = b;
-	}
-	else if (ref.mat) {
-		char **b;
-		
-		b = emalloc(sizeof (char**));
-
-		index = frame_stackpop(frame);
-		ref = frame_stackpop(frame);
-		b = ref.mat[index.i];
-		value.a = b;
-	}
-	//if pointer null exception
-	// if index not in bound in array, exception
-	frame_stackpush(frame, value);
-	return NO_RETURN;
-} 
-
-int
-opaastore(Frame *frame)
-{
-	Value index;
-	Value ref, value;
-
-	value = frame_stackpop(frame);
-	index = frame_stackpop(frame);
-	ref = frame_stackpop(frame);
-	
-	if (ref.a) {
-		ref.a[index.i] = value.a1;
-		frame_stackpush(frame, ref);
-	}
-	else if (ref.mat){ 
-		ref.mat[index.i] = value.a;
-		frame_stackpush(frame, ref);
-	}
-	
+	frame_stackpush(frame, v2);
+	frame_stackpush(frame, v1);
+	frame_stackpush(frame, v4);
+	frame_stackpush(frame, v3);
+	frame_stackpush(frame, v2);
+	frame_stackpush(frame, v1);
 	return NO_RETURN;
 }
 
-/* aload: load address from local variable */
-int
-opaload(Frame *frame)
-{
-	Value v;
-	U2 i;
-
-	i = frame->code->code[frame->pc++];
-	v = frame_localload(frame, i);
-	frame_stackpush(frame, v);
-	return 0;
-}
-
-/* aload_0: load address from local variable */
-int
-opaload_0(Frame *frame)
-{
-	Value v;
-
-	v = frame_localload(frame, 0);
-	frame_stackpush(frame, v);
-	return 0;
-}
-
-/* aload_1: load address from local variable */
-int
-opaload_1(Frame *frame)
-{
-	Value v;
-
-	v = frame_localload(frame, 1);
-	frame_stackpush(frame, v);
-	return 0;
-}
-
-/* aload_2: load address from local variable */
-int
-opaload_2(Frame *frame)
-{
-	Value v;
-
-	v = frame_localload(frame, 2);
-	frame_stackpush(frame, v);
-	return 0;
-}
-
-/* aload_3: load address from local variable */
-int
-opaload_3(Frame *frame)
-{
-	Value v;
-
-	v = frame_localload(frame, 3);
-	frame_stackpush(frame, v);
-	return 0;
-}
-
-/* astore: address into local variable */
-int
-opastore(Frame *frame)
-{
-	Value v;
-	U2 i;
-
-	i = frame->code->code[frame->pc++];
-	v = frame_stackpop(frame);
-	frame_localstore(frame, i, v);
-	return 0;
-}
-
-/* astore_0: store address into local variable */
-int
-opastore_0(Frame *frame)
-{
-	Value v;
-
-	v = frame_stackpop(frame);
-	frame_localstore(frame, 0, v);
-	return 0;
-}
-
-/* astore_1: store address into local variable */
-int
-opastore_1(Frame *frame)
-{
-	Value v;
-
-	v = frame_stackpop(frame);
-	frame_localstore(frame, 1, v);
-	return 0;
-}
-
-/* astore_2: store address into local variable */
-int
-opastore_2(Frame *frame)
-{
-	Value v;
-
-	v = frame_stackpop(frame);
-	frame_localstore(frame, 2, v);
-	return 0;
-}
-
-/* astore_3: store address into local variable */
-int
-opastore_3(Frame *frame)
-{
-	Value v;
-
-	v = frame_stackpop(frame);
-	frame_localstore(frame, 3, v);
-	return 0;
-}
-
-/*____________________________________________________________________________________________________________________*/
-
-/*__________________________________________________________array__________________________________________________________*/
-
-typedef enum array_type {
-	T_BOOLEAN   = 4,
-	T_CHAR      = 5,
-	T_FLOAT     = 6,
-	T_DOUBLE    = 7,
-	T_BYTE      = 8,
-	T_SHORT     = 9,
-	T_INT       = 10,
-	T_LONG      = 11,
-} arraytype;
-
-U1*
-initialize_zerou1(U1 *p, int tamanho)
-{
-	for (int i = 0; i < tamanho; i++) {
-        	*(p + i) = 0;
-    	}
-    	return p;
-}
-
-U2*
-initialize_zerou2(U2 *p, int tamanho)
-{
-	for (int i = 0; i < tamanho; i++) {
-        	*(p + i) = 0;
-    	}
-    	return p;
-}
-
-U4*
-initialize_zerou4(U4 *p, int tamanho)
-{
-	for (int i = 0; i < tamanho; i++) {
-        	*(p + i) = 0;
-    	}
-    	return p;
-}
-
-U8* 
-initialize_zerou8(U8 *p, int tamanho)
-{
-	for (int i = 0; i < tamanho; i++) {
-        	*(p + i) = 0;
-    	}
-    	return p;
-}
-
-char* 
-initialize_zerochar(char *p, int tamanho)
-{
-	for (int i = 0; i < tamanho; i++) {
-        	*(p + i) = '\0';
-    	}
-    	return p;
-}
-
-int
-opnewarray(Frame *frame)
-{
-	Value v1;
-	v1.i = frame->code->code[frame->pc++];
-	int atype = v1.i;
-	Value v;
-	v = frame_stackpop(frame);
-	
-	Value x;
-	void *p;
-	
-	switch (atype){
-		case T_BOOLEAN :
-			p = ecalloc(v.i, sizeof (U1));
-			p = initialize_zerou1(p, v.i); 
-			x.v = p;
-			frame_stackpush(frame, x);
-			return 0;
-			break;
-		case T_CHAR :
-			p = ecalloc(v.i, sizeof (U2));
-			p = initialize_zerochar(p, v.i); 
-			x.v = p;
-			frame_stackpush(frame, x);
-			return 0;
-			break;
-		case T_FLOAT :
-			p = ecalloc(v.i, sizeof (U4));
-			p = initialize_zerou4(p, v.i); 
-			x.v = p;
-			frame_stackpush(frame, x);
-			return 0;
-			break;
-		case T_DOUBLE :
-			p = ecalloc(v.i, sizeof (U8));
-			p = initialize_zerou8(p, v.i); 
-			x.v = p;
-			frame_stackpush(frame, x);
-			return 0;
-			break;
-		case T_BYTE :
-			p = ecalloc(v.i, sizeof (U1));
-			p = initialize_zerou1(p, v.i); 
-			x.v = p;
-			frame_stackpush(frame, x);
-			return 0;
-			break;
-		case T_SHORT :
-			p = ecalloc(v.i, sizeof (U2));
-			p = initialize_zerou2(p, v.i); 
-			x.v = p;
-			frame_stackpush(frame, x);
-			return 0;
-			break;
-		case T_INT :
-			p = ecalloc(v.i, sizeof (U4));
-			p = initialize_zerou4(p, v.i); 
-			x.v = p;
-			frame_stackpush(frame, x);
-			return 0;
-			break;
-		case T_LONG :
-			p = ecalloc(v.i, sizeof (U8));
-			p = initialize_zerou8(p, v.i); 
-			x.v = p;
-			frame_stackpush(frame, x);
-			return 0;
-			break;
-	}
-	return 0;
-}
-
-int
-opanewarray(Frame *frame)
-{
-	CONSTANT_String_info *stringref;
-	Value v;
-	U2 i;
-
-	i = frame->code->code[frame->pc++] << 8;
-	i = frame->code->code[frame->pc++];
-	stringref = &frame->class->constant_pool[i].info.string_info;
-	v = resolveconstant(frame->class, stringref->string_index);
-	
-	Value count;
-	count = frame_stackpop(frame);
-	
-	Value x;
-	
-	x.a = ecalloc(count.i, sizeof (v.v));
-	for(int n = 0; n<count.i ; n++)
-		x.a[n] = "null";
-	frame_stackpush(frame, x);
-	return 0;
-}
-
-int
-opmultianewarray(Frame *frame)
-{
-	CONSTANT_String_info *stringref;
-	Value v1;
-	U2 i;
-	U1 dimension;
-
-	i = frame->code->code[frame->pc++] << 8;
-	i = frame->code->code[frame->pc++];
-	dimension = frame->code->code[frame->pc++];
-	stringref = &frame->class->constant_pool[i].info.string_info;
-	v1 = resolveconstant(frame->class, stringref->string_index);
-	
-	Value count;
-	count = frame_stackpop(frame);
-	
-	Value x,aux;
-	int n;
-	
-	aux.mat = ecalloc(count.i, sizeof (void**));
-	x.mat = aux.mat;
-	for(int j=dimension; j>0 ; j--){
-		count = frame_stackpop(frame);
-		for(n = 0; n<count.i ; n++){
-			aux.a1 = ecalloc(count.i, sizeof (void*));
-			x.a[n] = aux.a1;
-			//for (int m = 0; m<count.i; m++){
-			//	x.mat[n][m] = "null";
-			//}
-		}
-	}
-	
-	frame_stackpush(frame, x);
-	return 0;
-}
-
-/* invokevirtual: invoke instance method; dispatch based on class */
-int
-opinvokespecial(Frame *frame)
+/* invokestatic: invoke a class (static) method */
+static int
+opinvokestatic(Frame *frame)
 {
 	CONSTANT_Methodref_info *methodref;
+	ClassFile *class;
+	enum JavaClass jclass;
+	char *classname, *name, *type;
 	U2 i;
 
+	// TODO: method must not be an instance initialization method,
+	//       or the class or interface initialization method.
 	i = frame->code->code[frame->pc++] << 8;
-	i = frame->code->code[frame->pc++];
+	i |= frame->code->code[frame->pc++];
 	methodref = &frame->class->constant_pool[i].info.methodref_info;
-	resolvemethod(frame, frame->class, methodref);
-	return 0;
+	classname = class_getclassname(frame->class, methodref->class_index);
+	class_getnameandtype(frame->class, methodref->name_and_type_index, &name, &type);
+	if ((jclass = native_javaclass(classname)) != 0) {
+		native_javamethod(frame, jclass, name, type);
+	} else if ((class = classload(classname)) != NULL) {
+		classinit(class);
+		if (methodcall(class, frame, name, type, ACC_STATIC) == -1) {
+			errx(EXIT_FAILURE, "could not find method %s", name);
+		}
+	} else {
+		errx(EXIT_FAILURE, "could not load class %s", classname);
+	}
+	return NO_RETURN;
 }
 
-/*____________________________________________________________________________________________________________________*/
-
-
 /* invokevirtual: invoke instance method; dispatch based on class */
-int
+static int
 opinvokevirtual(Frame *frame)
 {
 	CONSTANT_Methodref_info *methodref;
+	ClassFile *class;
+	enum JavaClass jclass;
+	char *classname, *name, *type;
 	U2 i;
 
 	i = frame->code->code[frame->pc++] << 8;
 	i |= frame->code->code[frame->pc++];
 	methodref = &frame->class->constant_pool[i].info.methodref_info;
-	resolvemethod(frame, frame->class, methodref);
-	return 0;
+	classname = class_getclassname(frame->class, methodref->class_index);
+	class_getnameandtype(frame->class, methodref->name_and_type_index, &name, &type);
+	if ((jclass = native_javaclass(classname)) != 0) {
+		native_javamethod(frame, jclass, name, type);
+	} else if ((class = classload(classname)) != NULL) {
+		classinit(class);
+		if (methodcall(class, NULL, name, type, ACC_STATIC) == -1) {
+			errx(EXIT_FAILURE, "could not find method %s", name);
+		}
+	} else {
+		errx(EXIT_FAILURE, "could not load class %s", classname);
+	}
+	return NO_RETURN;
 }
 
 /* ldc: push item from run-time constant pool */
-int
+static int
 opldc(Frame *frame)
 {
 	Value v;
@@ -1804,11 +1162,11 @@ opldc(Frame *frame)
 	i = frame->code->code[frame->pc++];
 	v = resolveconstant(frame->class, i);
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* ldc_w: push item from run-time constant pool (wide index) */
-int
+static int
 opldc_w(Frame *frame)
 {
 	Value v;
@@ -1818,11 +1176,11 @@ opldc_w(Frame *frame)
 	i |= frame->code->code[frame->pc++];
 	v = resolveconstant(frame->class, i);
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
 /* ldc2_w: push long or double from run-time constant pool (wide index) */
-int
+static int
 opldc2_w(Frame *frame)
 {
 	Value v;
@@ -1832,52 +1190,408 @@ opldc2_w(Frame *frame)
 	i |= frame->code->code[frame->pc++];
 	v = resolveconstant(frame->class, i);
 	frame_stackpush(frame, v);
-	return 0;
+	return NO_RETURN;
 }
 
-/* nop: do nothing */
+/* multianewarray: create new multidimensional array */
 int
-opnop(Frame *frame)
+opmultianewarray(Frame *frame)
+{
+	Value v;
+	Heap *h;
+	char *type;
+	int32_t *sizes;
+	U1 i, dimension;
+	U2 index;
+	size_t s;
+
+	index = frame->code->code[frame->pc++] << 8;
+	index = frame->code->code[frame->pc++];
+	dimension = frame->code->code[frame->pc++];
+	sizes = ecalloc(dimension, sizeof *sizes);
+	type = class_getclassname(frame->class, index);
+	switch (*type) {
+	case 'L':
+	case '[':
+		s = sizeof (void *);
+		break;
+	case 'D':
+	case 'J':
+		s = sizeof (int64_t);
+		break;
+	default:
+		s = sizeof (int32_t);
+		break;
+	}
+	for (i = 0; i < dimension; i++) {
+		v = frame_stackpop(frame);
+		if (v.i < 0) {
+			// TODO: throw NegativeArraySizeException
+		}
+		if (v.i == 0) {
+			// TODO: handle zero size
+		}
+		sizes[dimension - i - 1] = v.i;
+	}
+	h = array_multinew(sizes, dimension, s);
+	if (h == NULL) {
+		// TODO: throw error
+	}
+	v.v = h;
+	frame_stackpush(frame, v);
+	return NO_RETURN;
+}
+
+int
+opnewarray(Frame *frame)
+{
+	Value v;
+	Heap *h;
+	char *type;
+	int32_t *size;
+	U1 atype;
+	U2 index;
+	size_t s;
+
+	atype = frame->code->code[frame->pc++];
+	size = emalloc(sizeof *size);
+	switch (atype) {
+	case 4:
+		s = sizeof (U1);
+		break;
+	case 5:
+		s = sizeof (U1);
+		break;
+	case 8:
+		s = sizeof (U1);
+		break;
+	case 7:
+		s = sizeof (int64_t);
+		break;
+	case 6:
+		s = sizeof (int32_t);
+		break;
+	case 10:
+		s = sizeof (int32_t);
+		break;
+	case 11:
+		s = sizeof (int64_t);
+		break;
+	case 9:
+		s = sizeof (U2);
+		break;
+	default:
+		s = sizeof (int32_t);
+		break;
+	}
+
+	h = array_multinew(size, 1, s);
+	if (h == NULL) {
+		// TODO: throw error
+	}
+	v.v = h;
+	frame_stackpush(frame, v);
+	return NO_RETURN;
+}
+
+static int
+oparraylength(Frame *frame)
+{
+	Value v, length;
+	
+	v = frame_stackpop(frame);
+	length.i = (v.v)->nmemb;
+	frame_stackpush(frame, length);
+	
+	return NO_RETURN;
+}
+
+
+/* access jump table by index and jump */
+static int
+optableswitch(Frame *frame)
+{
+	int32_t def, high, low, j, n;
+	U4 a, b, c, d, baseaddr, targetaddr;
+	Value v;
+
+	baseaddr = frame->pc - 1;
+	while (frame->pc % 4)
+		frame->pc++;
+	v = frame_stackpop(frame);
+	a = frame->code->code[frame->pc++];
+	b = frame->code->code[frame->pc++];
+	c = frame->code->code[frame->pc++];
+	d = frame->code->code[frame->pc++];
+	def = (a << 24) | (b << 16) | (c << 8) | d;
+	a = frame->code->code[frame->pc++];
+	b = frame->code->code[frame->pc++];
+	c = frame->code->code[frame->pc++];
+	d = frame->code->code[frame->pc++];
+	low = (a << 24) | (b << 16) | (c << 8) | d;
+	a = frame->code->code[frame->pc++];
+	b = frame->code->code[frame->pc++];
+	c = frame->code->code[frame->pc++];
+	d = frame->code->code[frame->pc++];
+	high = (a << 24) | (b << 16) | (c << 8) | d;
+	targetaddr = baseaddr + def;
+	for (j = low; j <= high; j++) {
+		a = frame->code->code[frame->pc++];
+		b = frame->code->code[frame->pc++];
+		c = frame->code->code[frame->pc++];
+		d = frame->code->code[frame->pc++];
+		n = (a << 24) | (b << 16) | (c << 8) | d;
+		if (v.i == j) {
+			targetaddr = baseaddr + n;
+			break;
+		}
+	}
+	frame->pc = targetaddr;
+	return NO_RETURN;
+}
+
+static int
+opif_icmpge(Frame *frame)
+{
+	Value v1, v2;
+	U2 i;
+
+	i = frame->code->code[frame->pc++] << 8;
+	i |= frame->code->code[frame->pc++];
+	v2 = frame_stackpop(frame);
+	v1 = frame_stackpop(frame);
+	if (v1.i >= v2.i){
+		frame->pc = frame->pc + i;
+	} else{ 
+
+	}
+	return NO_RETURN;
+}
+
+static int 
+opsaload(Frame *frame)
+{
+	Value va, vi, v;
+
+	vi = frame_stackpop(frame);
+	va = frame_stackpop(frame);
+	v.u = ((U2 *)va.v->obj)[vi.i];
+	frame_stackpush(frame, v);
+	
+	return NO_RETURN; 
+}
+
+static int
+opsastore(Frame *frame)
+{
+	Value va, vi, vv, i;
+
+	vv = frame_stackpop(frame);
+	vi = frame_stackpop(frame);
+	i.u = vv.i;
+	va = frame_stackpop(frame);
+	if (va.v->obj == NULL) {
+		// TODO: throw NullPointerException
+	}
+	if (vi.i < 0 || vi.i >= va.v->nmemb) {
+		// TODO: throw ArrayIndexOutOfBoundsException
+	}
+	((U2 *)va.v->obj)[vi.i] = i.u;
+	return NO_RETURN;
+}
+
+static int 
+opbaload(Frame *frame)
+{
+	Value va, vi, v;
+
+	vi = frame_stackpop(frame);
+	va = frame_stackpop(frame);
+
+	v.u = ((U2 *)va.v->obj)[vi.i];
+	frame_stackpush(frame, v);
+	
+	return NO_RETURN; 
+}
+
+static int
+opbastore(Frame *frame)
+{
+	Value va, vi, vv, i;
+
+	vv = frame_stackpop(frame);
+	vi = frame_stackpop(frame);
+	i.u = vv.i;
+	va = frame_stackpop(frame);
+	if (va.v->obj == NULL) {
+		// TODO: throw NullPointerException
+	}
+	if (vi.i < 0 || vi.i >= va.v->nmemb) {
+		// TODO: throw ArrayIndexOutOfBoundsException
+	}
+	((U2 *)va.v->obj)[vi.i] = i.u;
+	return NO_RETURN;
+}
+
+static int 
+opcaload(Frame *frame)
+{
+	Value va, vi, v;
+
+	vi = frame_stackpop(frame);
+	va = frame_stackpop(frame);
+	v.u = ((U2 *)va.v->obj)[vi.i];
+	frame_stackpush(frame, v);
+	
+	return NO_RETURN; 
+}
+
+static int
+opcastore(Frame *frame)
+{
+	Value va, vi, vv, i;
+
+	vv = frame_stackpop(frame);
+	vi = frame_stackpop(frame);
+	i.u = vv.i;
+	va = frame_stackpop(frame);
+	if (va.v->obj == NULL) {
+		// TODO: throw NullPointerException
+	}
+	if (vi.i < 0 || vi.i >= va.v->nmemb) {
+		// TODO: throw ArrayIndexOutOfBoundsException
+	}
+	((U2 *)va.v->obj)[vi.i] = i.u;
+	return NO_RETURN;
+}
+
+static int 
+opfaload(Frame *frame)
+{
+	Value va, vi, v;
+
+	vi = frame_stackpop(frame);
+	va = frame_stackpop(frame);
+	v.f = ((float *)va.v->obj)[vi.i];
+	frame_stackpush(frame, v);
+	
+	return NO_RETURN; 
+}
+
+static int
+opfastore(Frame *frame)
+{
+	Value va, vi, vv, i;
+
+	vv = frame_stackpop(frame);
+	vi = frame_stackpop(frame);
+	i.f = vv.i;
+	va = frame_stackpop(frame);
+	if (va.v->obj == NULL) {
+		// TODO: throw NullPointerException
+	}
+	if (vi.i < 0 || vi.i >= va.v->nmemb) {
+		// TODO: throw ArrayIndexOutOfBoundsException
+	}
+	((float *)va.v->obj)[vi.i] = i.f;
+	return NO_RETURN;
+}
+
+static int 
+opiaload(Frame *frame)
+{
+	Value va, vi, v;
+
+	vi = frame_stackpop(frame);
+	va = frame_stackpop(frame);
+	v.i = ((int *)va.v->obj)[vi.i];
+	frame_stackpush(frame, v);
+	
+	return NO_RETURN; 
+}
+
+static int
+opiastore(Frame *frame)
+{
+	Value va, vi, vv;
+
+	vv = frame_stackpop(frame);
+	vi = frame_stackpop(frame);
+	va = frame_stackpop(frame);
+	if (va.v->obj == NULL) {
+		// TODO: throw NullPointerException
+	}
+	if (vi.i < 0 || vi.i >= va.v->nmemb) {
+		// TODO: throw ArrayIndexOutOfBoundsException
+	}
+	((int*)va.v->obj)[vi.i] = vv.i;
+	return NO_RETURN;
+}
+
+
+static int
+opgoto(Frame *frame)
+{
+	U2 i;
+
+	i = frame->code->code[frame->pc++] << 8;
+	i |= frame->code->code[frame->pc++];
+	frame->pc = frame->pc + i;
+
+	return NO_RETURN;
+}
+
+static int
+opiinc(Frame *frame)
+{
+
+	Value v1, v2;
+	U1 index, cons;
+
+	index = frame->code->code[frame->pc++];
+	cons = frame->code->code[frame->pc++];
+	v1.i = cons;
+	v2 = frame_localload(frame, index);
+	v2.i = v2.i + v1.i;
+	frame_localstore(frame, index, v2);
+
+	return NO_RETURN;
+}
+/* ireturn: return something from method */
+static int
+opireturn(Frame *frame)
 {
 	(void)frame;
-	return 0;
+	return RETURN_OPERAND;
 }
 
 /* return: return void from method */
-int
+static int
 opreturn(Frame *frame)
 {
 	(void)frame;
-	return 1;
+	return RETURN_VOID;
 }
 
-int
-opiastore(Frame *frame){
-	Value ref, index, value;
-	value = frame_stackpop(frame);
-	index = frame_stackpop(frame);
-	ref = frame_stackpop(frame);
-	
-	ref.in[index.i] = value.i;
-	return NO_RETURN;	
-}
-
-int
-opiaload(Frame *frame){
-	Value ref, index, value;
-	index = frame_stackpop(frame);
-	ref = frame_stackpop(frame);
-	
-	value.i = ref.in[index.i];
-	frame_stackpush(frame, value);
+/* nop: do nothing */
+static int
+opnop(Frame *frame)
+{
+	(void)frame;
 	return NO_RETURN;
 }
 
 /* call method */
-void
-methodcall(ClassFile *class, Method *method)
+int
+methodcall(ClassFile *class, Frame *frame, char *name, char *descriptor, U2 flags)
 {
 	static int(*instrtab[])(Frame *) = {
+		/*
+		 * some functions are used in more than one instructions,
+		 * for example, there is no opareturn, opdreturn or oplreturn,
+		 * there is only opireturn, that implements all function that
+		 * return something.
+		 */
 		[NOP]             = opnop,
 		[ACONST_NULL]     = opnop,
 		[ICONST_M1]       = opiconst_m1,
@@ -1895,15 +1609,15 @@ methodcall(ClassFile *class, Method *method)
 		[DCONST_0]        = opdconst_0,
 		[DCONST_1]        = opdconst_1,
 		[BIPUSH]          = opbipush,
-		[SIPUSH]          = opnop,
+		[SIPUSH]          = opsipush,
 		[LDC]             = opldc,
 		[LDC_W]           = opldc_w,
 		[LDC2_W]          = opldc2_w,
 		[ILOAD]           = opiload,
 		[LLOAD]           = oplload,
-		[FLOAD]           = opfload,
-		[DLOAD]           = opdload,
-		[ALOAD]           = opnop,
+		[FLOAD]           = opiload,
+		[DLOAD]           = oplload,
+		[ALOAD]           = opiload,
 		[ILOAD_0]         = opiload_0,
 		[ILOAD_1]         = opiload_1,
 		[ILOAD_2]         = opiload_2,
@@ -1912,31 +1626,31 @@ methodcall(ClassFile *class, Method *method)
 		[LLOAD_1]         = oplload_1,
 		[LLOAD_2]         = oplload_2,
 		[LLOAD_3]         = oplload_3,
-		[FLOAD_0]         = opfload_0,
-		[FLOAD_1]         = opfload_1,
-		[FLOAD_2]         = opfload_2,
-		[FLOAD_3]         = opfload_3,
-		[DLOAD_0]         = opdload_0,
-		[DLOAD_1]         = opdload_1,
-		[DLOAD_2]         = opdload_2,
-		[DLOAD_3]         = opdload_3,
-		[ALOAD_0]         = opaload_0,
-		[ALOAD_1]         = opaload_1,
-		[ALOAD_2]         = opnop,
-		[ALOAD_3]         = opnop,
+		[FLOAD_0]         = opiload_0,
+		[FLOAD_1]         = opiload_1,
+		[FLOAD_2]         = opiload_2,
+		[FLOAD_3]         = opiload_3,
+		[DLOAD_0]         = oplload_0,
+		[DLOAD_1]         = oplload_1,
+		[DLOAD_2]         = oplload_2,
+		[DLOAD_3]         = oplload_3,
+		[ALOAD_0]         = opiload_0,
+		[ALOAD_1]         = opiload_1,
+		[ALOAD_2]         = opiload_2,
+		[ALOAD_3]         = opiload_3,
 		[IALOAD]          = opiaload,
 		[LALOAD]          = opnop,
-		[FALOAD]          = opnop,
+		[FALOAD]          = opfaload,
 		[DALOAD]          = opnop,
 		[AALOAD]          = opaaload,
-		[BALOAD]          = opnop,
-		[CALOAD]          = opnop,
-		[SALOAD]          = opnop,
+		[BALOAD]          = opbaload,
+		[CALOAD]          = opcaload,
+		[SALOAD]          = opsaload,
 		[ISTORE]          = opistore,
 		[LSTORE]          = oplstore,
-		[FSTORE]          = opfstore,
-		[DSTORE]          = opdstore,
-		[ASTORE]          = opastore,
+		[FSTORE]          = opistore,
+		[DSTORE]          = oplstore,
+		[ASTORE]          = opistore,
 		[ISTORE_0]        = opistore_0,
 		[ISTORE_1]        = opistore_1,
 		[ISTORE_2]        = opistore_2,
@@ -1945,26 +1659,26 @@ methodcall(ClassFile *class, Method *method)
 		[LSTORE_1]        = oplstore_1,
 		[LSTORE_2]        = oplstore_2,
 		[LSTORE_3]        = oplstore_3,
-		[FSTORE_0]        = opfstore_0,
-		[FSTORE_1]        = opfstore_1,
-		[FSTORE_2]        = opfstore_2,
-		[FSTORE_3]        = opfstore_3,
-		[DSTORE_0]        = opdstore_0,
-		[DSTORE_1]        = opdstore_1,
-		[DSTORE_2]        = opdstore_2,
-		[DSTORE_3]        = opdstore_3,
-		[ASTORE_0]        = opastore_0,
-		[ASTORE_1]        = opastore_1,
-		[ASTORE_2]        = opnop,
-		[ASTORE_3]        = opnop,
+		[FSTORE_0]        = opistore_0,
+		[FSTORE_1]        = opistore_1,
+		[FSTORE_2]        = opistore_2,
+		[FSTORE_3]        = opistore_3,
+		[DSTORE_0]        = oplstore_0,
+		[DSTORE_1]        = oplstore_1,
+		[DSTORE_2]        = oplstore_2,
+		[DSTORE_3]        = oplstore_3,
+		[ASTORE_0]        = opistore_0,
+		[ASTORE_1]        = opistore_1,
+		[ASTORE_2]        = opistore_2,
+		[ASTORE_3]        = opistore_3,
 		[IASTORE]         = opiastore,
 		[LASTORE]         = opnop,
-		[FASTORE]         = opnop,
+		[FASTORE]         = opfastore,
 		[DASTORE]         = opnop,
 		[AASTORE]         = opaastore,
-		[BASTORE]         = opnop,
-		[CASTORE]         = opnop,
-		[SASTORE]         = opnop,
+		[BASTORE]         = opbastore,
+		[CASTORE]         = opcastore,
+		[SASTORE]         = opsastore,
 		[POP]             = oppop,
 		[POP2]            = oppop2,
 		[DUP]             = opdup,
@@ -2010,7 +1724,7 @@ methodcall(ClassFile *class, Method *method)
 		[LOR]             = opnop,
 		[IXOR]            = opnop,
 		[LXOR]            = opnop,
-		[IINC]            = opnop,
+		[IINC]            = opiinc,
 		[I2L]             = opnop,
 		[I2F]             = opnop,
 		[I2D]             = opnop,
@@ -2040,35 +1754,35 @@ methodcall(ClassFile *class, Method *method)
 		[IF_ICMPEQ]       = opnop,
 		[IF_ICMPNE]       = opnop,
 		[IF_ICMPLT]       = opnop,
-		[IF_ICMPGE]       = opnop,
+		[IF_ICMPGE]       = opif_icmpge,
 		[IF_ICMPGT]       = opnop,
 		[IF_ICMPLE]       = opnop,
 		[IF_ACMPEQ]       = opnop,
 		[IF_ACMPNE]       = opnop,
-		[GOTO]            = opnop,
+		[GOTO]            = opgoto,
 		[JSR]             = opnop,
 		[RET]             = opnop,
-		[TABLESWITCH]     = opnop,
+		[TABLESWITCH]     = optableswitch,
 		[LOOKUPSWITCH]    = opnop,
-		[IRETURN]         = opnop,
-		[LRETURN]         = opnop,
-		[FRETURN]         = opnop,
-		[DRETURN]         = opnop,
-		[ARETURN]         = opnop,
+		[IRETURN]         = opireturn,
+		[LRETURN]         = opireturn,
+		[FRETURN]         = opireturn,
+		[DRETURN]         = opireturn,
+		[ARETURN]         = opireturn,
 		[RETURN]          = opreturn,
 		[GETSTATIC]       = opgetstatic,
 		[PUTSTATIC]       = opnop,
 		[GETFIELD]        = opnop,
 		[PUTFIELD]        = opnop,
 		[INVOKEVIRTUAL]   = opinvokevirtual,
-		[INVOKESPECIAL]   = opinvokespecial,
-		[INVOKESTATIC]    = opnop,
+		[INVOKESPECIAL]   = opnop,
+		[INVOKESTATIC]    = opinvokestatic,
 		[INVOKEINTERFACE] = opnop,
 		[INVOKEDYNAMIC]   = opnop,
 		[NEW]             = opnop,
 		[NEWARRAY]        = opnewarray,
-		[ANEWARRAY]       = opanewarray,
-		[ARRAYLENGTH]     = opnop,
+		[ANEWARRAY]       = opnop,
+		[ARRAYLENGTH]     = oparraylength,
 		[ATHROW]          = opnop,
 		[CHECKCAST]       = opnop,
 		[INSTANCEOF]      = opnop,
@@ -2083,32 +1797,82 @@ methodcall(ClassFile *class, Method *method)
 	};
 	Attribute *cattr;       /* Code_attribute */
 	Code_attribute *code;
-	Frame *frame;
+	Frame *newframe;
+	Method *method;
+	Value v;
+	char *s;
+	U2 i, n;
+	int ret = NO_RETURN;
 
+	if ((method = class_getmethod(class, name, descriptor)) == NULL)
+		return -1;
+	if ((flags != ACC_NONE) && !(method->access_flags & flags))
+		return -1;
 	if ((cattr = class_getattr(method->attributes, method->attributes_count, Code)) == NULL)
-		err(EXIT_FAILURE, "could not find code for method");
+		err(EXIT_FAILURE, "could not find code for method %s", name);
 	code = &cattr->info.code;
-	if ((frame = frame_push(code, class)) == NULL)
+	if ((newframe = frame_push(code, class, code->max_locals, code->max_stack)) == NULL)
 		err(EXIT_FAILURE, "out of memory");
-	while (frame->pc < code->code_length)
-		if ((*instrtab[code->code[frame->pc++]])(frame))
+	if (frame) {
+		s = descriptor;
+		i = 0;
+		while (*s && *s != ')') {
+			v = frame_stackpop(frame);
+			frame_localstore(newframe, i++, v);
+			switch (*(s++)) {
+			case 'L':
+				while (*s && *s != ';') {
+					s++;
+				}
+				break;
+			case '[':
+				n = 0;
+				while (*s == '[') {
+					s++;
+				}
+				if (*s == 'L') {
+					while (*s && *s != ';') {
+						s++;
+					}
+				} else {
+					s++;
+				}
+				break;
+			case 'D':
+			case 'J':
+				frame_localstore(newframe, i++, v);
+				/* FALLTHROUGH */
+			default:
+				s++;
+				break;
+			}
+		}
+	}
+	while (newframe->pc < code->code_length) {
+		if ((ret = (*instrtab[code->code[newframe->pc++]])(newframe)) != NO_RETURN) {
 			break;
+		}
+	}
+	if (ret == RETURN_OPERAND) {
+		v = frame_stackpop(newframe);
+		frame_stackpush(frame, v);
+	}
 	frame_pop();
+	return 0;
 }
 
 /* load and initialize main class, then call main method */
-void
+static void
 java(int argc, char *argv[])
 {
 	ClassFile *class;
-	Method *method;
 
-	(void)argc;
 	class = classload(argv[0]);
-	if ((method = class_getmethod(class, "main", "([Ljava/lang/String;)V")) == NULL || !(method->access_flags & (ACC_PUBLIC | ACC_STATIC)))
-		errx(EXIT_FAILURE, "could not find main method");
 	classinit(class);
-	methodcall(class, method);
+	/* TODO: implement args string argument to main */
+	(void)argc;
+	if (methodcall(class, NULL, "main", "([Ljava/lang/String;)V", (ACC_PUBLIC | ACC_STATIC)) == -1)
+		errx(EXIT_FAILURE, "could not find main method");
 }
 
 /* java: launches a java application */

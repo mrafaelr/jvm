@@ -2,11 +2,14 @@
 typedef union Value {
 	U2      u;
 	int32_t i;
-	uint32_t *a;
+	char **a;
+	char ***mat;
 	int64_t l;
 	float   f;
 	double  d;
 	void   *v;
+	int   *in;
+	char *a1;
 } Value;
 
 /* virtual machine frame structure */
